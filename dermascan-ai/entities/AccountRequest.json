@@ -1,0 +1,81 @@
+{
+  "name": "AccountRequest",
+  "type": "object",
+  "properties": {
+    "full_name": {
+      "type": "string",
+      "description": "Full name"
+    },
+    "email": {
+      "type": "string",
+      "description": "Email address"
+    },
+    "phone": {
+      "type": "string",
+      "description": "Phone number"
+    },
+    "specialty": {
+      "type": "string",
+      "enum": [
+        "Dermatology",
+        "General Practice",
+        "Internal Medicine",
+        "Oncology",
+        "Pathology",
+        "Immunology",
+        "Other"
+      ],
+      "description": "Medical specialty"
+    },
+    "hospital": {
+      "type": "string",
+      "description": "Hospital or institution"
+    },
+    "license_number": {
+      "type": "string",
+      "description": "Medical license number"
+    },
+    "license_authority": {
+      "type": "string",
+      "description": "License issuing authority"
+    },
+    "document_url": {
+      "type": "string",
+      "description": "Uploaded license document URL"
+    },
+    "preferred_username": {
+      "type": "string",
+      "description": "Preferred username with dr. prefix"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "approved",
+        "rejected",
+        "more_info"
+      ],
+      "default": "pending",
+      "description": "Request status"
+    },
+    "admin_message": {
+      "type": "string",
+      "description": "Admin response message"
+    },
+    "reviewed_by": {
+      "type": "string",
+      "description": "Admin who reviewed"
+    },
+    "reviewed_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Review timestamp"
+    }
+  },
+  "required": [
+    "full_name",
+    "email",
+    "specialty",
+    "license_number"
+  ]
+}

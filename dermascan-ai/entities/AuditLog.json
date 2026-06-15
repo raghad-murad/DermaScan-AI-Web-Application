@@ -1,0 +1,38 @@
+﻿{
+  "name": "AuditLog",
+  "type": "object",
+  "properties": {
+    "actor_id": {
+      "type": "string",
+      "description": "User ID of actor"
+    },
+    "actor_name": {
+      "type": "string",
+      "description": "Name of actor"
+    },
+    "actor_role": {
+      "type": "string",
+      "enum": [
+        "doctor",
+        "admin"
+      ],
+      "description": "Role of actor"
+    },
+    "action": {
+      "type": "string",
+      "description": "Action performed"
+    },
+    "target": {
+      "type": "string",
+      "description": "Target of action"
+    },
+    "details": {
+      "type": "string",
+      "description": "Additional details"
+    }
+  },
+  "required": [
+    "actor_name",
+    "action"
+  ]
+}

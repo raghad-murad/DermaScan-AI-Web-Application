@@ -1,0 +1,60 @@
+﻿{
+  "name": "Patient",
+  "type": "object",
+  "properties": {
+    "doctor_id": {
+      "type": "string",
+      "description": "UID of the owning doctor"
+    },
+    "full_name": {
+      "type": "string",
+      "description": "Patient full name"
+    },
+    "date_of_birth": {
+      "type": "string",
+      "format": "date",
+      "description": "Date of birth"
+    },
+    "age": {
+      "type": "number",
+      "description": "Calculated age"
+    },
+    "gender": {
+      "type": "string",
+      "enum": [
+        "Male",
+        "Female"
+      ],
+      "description": "Gender"
+    },
+    "phone": {
+      "type": "string",
+      "description": "Phone number"
+    },
+    "address": {
+      "type": "string",
+      "description": "Address"
+    },
+    "medical_notes": {
+      "type": "string",
+      "description": "Medical notes"
+    },
+    "last_visit": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Last visit date"
+    },
+    "total_analyses": {
+      "type": "number",
+      "default": 0,
+      "description": "Total analyses count"
+    }
+  },
+  "required": [
+    "full_name",
+    "date_of_birth",
+    "gender",
+    "phone",
+    "doctor_id"
+  ]
+}

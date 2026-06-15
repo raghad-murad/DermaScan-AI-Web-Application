@@ -1,0 +1,63 @@
+﻿{
+  "name": "SupportTicket",
+  "type": "object",
+  "properties": {
+    "doctor_id": {
+      "type": "string",
+      "description": "Doctor who submitted"
+    },
+    "doctor_name": {
+      "type": "string",
+      "description": "Doctor name for display"
+    },
+    "subject": {
+      "type": "string",
+      "description": "Ticket subject"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "Technical",
+        "Medical",
+        "Account"
+      ],
+      "description": "Ticket category"
+    },
+    "description": {
+      "type": "string",
+      "description": "Ticket description"
+    },
+    "screenshot_url": {
+      "type": "string",
+      "description": "Screenshot URL"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "escalated",
+        "resolved"
+      ],
+      "default": "pending",
+      "description": "Ticket status"
+    },
+    "admin_reply": {
+      "type": "string",
+      "description": "Admin reply message"
+    },
+    "resolved_by": {
+      "type": "string",
+      "description": "Admin who resolved"
+    },
+    "resolved_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Resolution timestamp"
+    }
+  },
+  "required": [
+    "subject",
+    "category",
+    "description"
+  ]
+}

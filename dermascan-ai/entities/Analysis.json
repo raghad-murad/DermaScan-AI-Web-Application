@@ -1,0 +1,101 @@
+﻿{
+  "name": "Analysis",
+  "type": "object",
+  "properties": {
+    "doctor_id": {
+      "type": "string",
+      "description": "UID of the doctor"
+    },
+    "patient_id": {
+      "type": "string",
+      "description": "Linked patient ID"
+    },
+    "patient_name": {
+      "type": "string",
+      "description": "Patient name for display"
+    },
+    "image_type": {
+      "type": "string",
+      "enum": [
+        "clinical",
+        "dermoscopic"
+      ],
+      "description": "Type of image"
+    },
+    "image_url": {
+      "type": "string",
+      "description": "Uploaded image URL"
+    },
+    "model_used": {
+      "type": "string",
+      "description": "AI model used for analysis"
+    },
+    "predictions": {
+      "type": "array",
+      "description": "AI predictions array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "disease": {
+            "type": "string"
+          },
+          "icd10": {
+            "type": "string"
+          },
+          "confidence": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "confirmed_diagnosis": {
+      "type": "string",
+      "description": "Doctor confirmed diagnosis"
+    },
+    "doctor_notes": {
+      "type": "string",
+      "description": "Doctor notes"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "processing",
+        "ready"
+      ],
+      "default": "processing",
+      "description": "Analysis status"
+    },
+    "prescription": {
+      "type": "array",
+      "description": "Prescription medications",
+      "items": {
+        "type": "object",
+        "properties": {
+          "medication": {
+            "type": "string"
+          },
+          "dose": {
+            "type": "string"
+          },
+          "duration": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "prescription_instructions": {
+      "type": "string",
+      "description": "Prescription instructions"
+    },
+    "next_appointment": {
+      "type": "string",
+      "format": "date",
+      "description": "Next appointment date"
+    }
+  },
+  "required": [
+    "doctor_id",
+    "patient_id",
+    "image_type"
+  ]
+}
