@@ -94,3 +94,13 @@
     @apply font-heading font-medium;
   }
 }
+
+@keyframes dermascan-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-12px); }
+}
+
+@keyframes dermascan-hero-in {
+  from { opacity: 0; transform: translateY(28px); }
+  to { opacity: 1; transform: translateY(0); }
+}
