@@ -1,11 +1,10 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { LayoutDashboard, FileText, Stethoscope, Shield, LifeBuoy, Settings, LogOut, X } from 'lucide-react';
 import AppLogo from '@/components/AppLogo';
 import ThemeToggle from '@/components/ThemeToggle';
 import { useAuth } from '@/lib/AuthContext';
-import { base44 } from '@/api/base44Client';
-import { useQuery } from '@tanstack/react-query';
+import { apiGet } from '@/lib/apiClient';
 
 const navItems = [
   { label: 'Overview', path: '/admin', icon: LayoutDashboard },
@@ -25,11 +24,13 @@ export default function AdminSidebar({ open, onClose }: AdminSidebarProps) {
   const location = useLocation();
   const { user, logout } = useAuth();
 
-  const { data: pendingRequests } = useQuery({
-    queryKey: ['pending-requests-count'],
-    queryFn: () => base44.entities.AccountRequest.filter({ status: 'pending' }),
-    initialData: [],
-  });
+  const [pendingCount, setPendingCount] = useState(0);
+
+  useEffect(() => {
+    apiGet<any[]>('/api/account-requests/')
+      .then(data => setPendingCount(data.filter(r => r.status === 'pending').length))
+      .catch(() => setPendingCount(0));
+  }, []);
 
   return (
     <>
@@ -75,9 +76,9 @@ export default function AdminSidebar({ open, onClose }: AdminSidebarProps) {
                   <item.icon className="h-4 w-4" />
                   {item.label}
                 </div>
-                {item.badge && pendingRequests.length > 0 && (
+                {item.badge && pendingCount > 0 && (
                   <span className="bg-amber-500 dark:bg-amber-600 text-white dark:text-black text-xs font-bold px-2 py-0.5 rounded-full">
-                    {pendingRequests.length}
+                    {pendingCount}
                   </span>
                 )}
               </Link>

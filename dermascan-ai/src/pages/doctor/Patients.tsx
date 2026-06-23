@@ -143,7 +143,7 @@ export default function Patients() {
         </Card>
 
         <Dialog open={showAdd} onOpenChange={setShowAdd}>
-          <DialogContent>
+          <DialogContent className="max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{editingPatient ? 'Edit Patient' : 'New Patient'}</DialogTitle>
             </DialogHeader>

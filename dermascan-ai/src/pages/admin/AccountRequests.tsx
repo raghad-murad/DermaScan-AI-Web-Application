@@ -33,6 +33,7 @@ export default function AccountRequests() {
   const [actioningId, setActioningId] = useState<string | null>(null);
 
   const [showCreateDoctor, setShowCreateDoctor] = useState(false);
+  const [pendingApproveRequest, setPendingApproveRequest] = useState<any>(null);
   const [doctorForm, setDoctorForm] = useState(emptyDoctorForm);
   const [creatingDoctor, setCreatingDoctor] = useState(false);
   const [showDoctorPassword, setShowDoctorPassword] = useState(false);
@@ -75,29 +76,20 @@ export default function AccountRequests() {
 
   const filtered = tab === 'all' ? requests : requests.filter(r => r.status === tab);
 
-  const handleApprove = async (req: any) => {
-    setActioningId(req.id);
-    try {
-      await apiPut(`/api/account-requests/${req.id}`, { status: 'approved' });
-      await fetchRequests();
-      toast({ title: 'Request approved', description: `${req.full_name}'s account request was approved.` });
-      setViewRequest(null);
-      setDoctorForm({
-        full_name: req.full_name || '',
-        email: req.email || '',
-        specialty: req.specialty || '',
-        hospital: req.hospital || '',
-        license_number: req.license_number || '',
-        username: (req.preferred_username || '').replace(/^dr\./, ''),
-        phonenumber: req.phone || '',
-        password: req.preferred_password || '',
-      });
-      setShowCreateDoctor(true);
-    } catch (err: any) {
-      toast({ title: 'Approval failed', description: err.message || 'Could not approve request.', variant: 'destructive' });
-    } finally {
-      setActioningId(null);
-    }
+  const handleApprove = (req: any) => {
+    setViewRequest(null);
+    setDoctorForm({
+      full_name: req.full_name || '',
+      email: req.email || '',
+      specialty: req.specialty || '',
+      hospital: req.hospital || '',
+      license_number: req.license_number || '',
+      username: (req.preferred_username || '').replace(/^dr\./, ''),
+      phonenumber: req.phone || '',
+      password: req.preferred_password || '',
+    });
+    setPendingApproveRequest(req);
+    setShowCreateDoctor(true);
   };
 
   const handleReject = async () => {
@@ -116,8 +108,10 @@ export default function AccountRequests() {
   };
 
   const handleCreateDoctor = async () => {
+    if (!pendingApproveRequest) return;
     setCreatingDoctor(true);
     try {
+      await apiPut(`/api/account-requests/${pendingApproveRequest.id}`, { status: 'approved' });
       await apiPost('/api/users/create-doctor', {
         full_name: doctorForm.full_name,
         email: doctorForm.email,
@@ -130,6 +124,7 @@ export default function AccountRequests() {
       });
       toast({ title: 'Doctor account created successfully' });
       setShowCreateDoctor(false);
+      setPendingApproveRequest(null);
       setDoctorForm(emptyDoctorForm);
       await fetchRequests();
     } catch (err: any) {
@@ -137,6 +132,13 @@ export default function AccountRequests() {
     } finally {
       setCreatingDoctor(false);
     }
+  };
+
+  const handleCreateDoctorCancel = () => {
+    toast({ title: 'Request remains pending', description: 'No account was created.' });
+    setShowCreateDoctor(false);
+    setPendingApproveRequest(null);
+    setDoctorForm(emptyDoctorForm);
   };
 
   return (
@@ -263,7 +265,7 @@ export default function AccountRequests() {
 
       {/* Reject Dialog */}
       <Dialog open={!!rejectDialog} onOpenChange={() => setRejectDialog(null)}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Reject Request</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">Provide a reason for rejecting {rejectDialog?.full_name}'s request.</p>
@@ -277,8 +279,8 @@ export default function AccountRequests() {
       </Dialog>
 
       {/* Create Doctor Account Modal (post-approval) */}
-      <Dialog open={showCreateDoctor} onOpenChange={setShowCreateDoctor}>
-        <DialogContent className="sm:max-w-[500px]">
+      <Dialog open={showCreateDoctor} onOpenChange={(open) => { if (!open) setShowCreateDoctor(false); }}>
+        <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Create Doctor Account</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
@@ -329,7 +331,7 @@ export default function AccountRequests() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" className="rounded-lg" onClick={() => setShowCreateDoctor(false)}>Cancel</Button>
+            <Button variant="outline" className="rounded-lg" onClick={handleCreateDoctorCancel}>Cancel</Button>
             <Button
               className="rounded-lg"
               onClick={handleCreateDoctor}

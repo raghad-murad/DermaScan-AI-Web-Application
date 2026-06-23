@@ -1,14 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Upload, Zap } from 'lucide-react';
+import { Upload, Zap, UserPlus } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { apiGet, apiPostForm } from '@/lib/apiClient';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { apiGet, apiPost, apiPostForm } from '@/lib/apiClient';
 import { useToast } from '@/components/ui/use-toast';
 import DoctorTopbar from '@/components/doctor/DoctorTopbar';
+
+const emptyPatientForm = { full_name: '', date_of_birth: '', gender: '', contact_number: '', notes: '' };
 
 export default function NewAnalysis() {
   const { toast } = useToast();
@@ -26,17 +31,27 @@ export default function NewAnalysis() {
   const [analyzeError, setAnalyzeError] = useState('');
   const [results, setResults] = useState<any>(null);
 
-  useEffect(() => {
+  const [showNewPatient, setShowNewPatient] = useState(false);
+  const [patientForm, setPatientForm] = useState(emptyPatientForm);
+  const [creatingPatient, setCreatingPatient] = useState(false);
+
+  const fetchPatients = () => {
     setLoadingPatients(true);
-    apiGet<any[]>('/api/patients/')
+    return apiGet<any[]>('/api/patients/')
       .then(data => {
         setPatients(data);
-        if (preselectedPatientId && data.some(p => p.id === preselectedPatientId)) {
-          setSelectedPatientId(preselectedPatientId);
-        }
+        return data;
       })
-      .catch(err => setPatientsError(err.message || 'Failed to load patients.'))
+      .catch(err => { setPatientsError(err.message || 'Failed to load patients.'); return []; })
       .finally(() => setLoadingPatients(false));
+  };
+
+  useEffect(() => {
+    fetchPatients().then(data => {
+      if (preselectedPatientId && data.some((p: any) => p.id === preselectedPatientId)) {
+        setSelectedPatientId(preselectedPatientId);
+      }
+    });
   }, [preselectedPatientId]);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -67,6 +82,34 @@ export default function NewAnalysis() {
     }
   };
 
+  const handleCreatePatient = async () => {
+    setCreatingPatient(true);
+    try {
+      const newPatient = await apiPost<any>('/api/patients', {
+        full_name: patientForm.full_name,
+        date_of_birth: patientForm.date_of_birth,
+        gender: patientForm.gender,
+        contact_number: patientForm.contact_number || undefined,
+        notes: patientForm.notes || undefined,
+      });
+      const refreshed = await fetchPatients();
+      const created = refreshed.find((p: any) => p.id === newPatient.id) ?? newPatient;
+      setSelectedPatientId(created.id);
+      toast({ title: 'Patient created successfully' });
+      setShowNewPatient(false);
+      setPatientForm(emptyPatientForm);
+    } catch (err: any) {
+      toast({ title: 'Failed to create patient', description: err.message || 'Please try again.', variant: 'destructive' });
+    } finally {
+      setCreatingPatient(false);
+    }
+  };
+
+  const handleCancelNewPatient = () => {
+    setShowNewPatient(false);
+    setPatientForm(emptyPatientForm);
+  };
+
   const getConfidenceColor = (conf: number) => {
     if (conf >= 0.6) return 'bg-destructive';
     if (conf >= 0.3) return 'bg-yellow-500';
@@ -74,6 +117,8 @@ export default function NewAnalysis() {
   };
 
   const selectedPatient = patients.find(p => p.id === selectedPatientId);
+
+  const newPatientValid = patientForm.full_name && patientForm.date_of_birth && patientForm.gender;
 
   return (
     <div>
@@ -90,17 +135,28 @@ export default function NewAnalysis() {
                 <p className="text-sm text-muted-foreground">Loading patients...</p>
               ) : patientsError ? (
                 <p className="text-sm text-destructive">{patientsError}</p>
-              ) : patients.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No patients found. Add a patient before starting an analysis.</p>
               ) : (
-                <Select value={selectedPatientId} onValueChange={setSelectedPatientId}>
-                  <SelectTrigger><SelectValue placeholder="Select a patient..." /></SelectTrigger>
-                  <SelectContent>
-                    {patients.map(p => (
-                      <SelectItem key={p.id} value={p.id}>{p.full_name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="flex gap-2">
+                  <Select value={selectedPatientId} onValueChange={setSelectedPatientId}>
+                    <SelectTrigger className="flex-1">
+                      <SelectValue placeholder={patients.length === 0 ? 'No patients yet — add one first' : 'Select a patient...'} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {patients.map(p => (
+                        <SelectItem key={p.id} value={p.id}>{p.full_name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="rounded-lg gap-1.5 shrink-0"
+                    onClick={() => setShowNewPatient(true)}
+                  >
+                    <UserPlus className="h-4 w-4" />
+                    New Patient
+                  </Button>
+                </div>
               )}
             </div>
 
@@ -208,6 +264,73 @@ export default function NewAnalysis() {
           </div>
         )}
       </div>
+
+      {/* New Patient Dialog */}
+      <Dialog open={showNewPatient} onOpenChange={(open) => { if (!open) handleCancelNewPatient(); }}>
+        <DialogContent className="sm:max-w-[460px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>New Patient</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label className="text-[13px] font-medium">Full Name <span className="text-destructive">*</span></Label>
+              <Input
+                value={patientForm.full_name}
+                onChange={e => setPatientForm({ ...patientForm, full_name: e.target.value })}
+                placeholder="Patient's full name"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[13px] font-medium">Date of Birth <span className="text-destructive">*</span></Label>
+              <Input
+                type="date"
+                value={patientForm.date_of_birth}
+                onChange={e => setPatientForm({ ...patientForm, date_of_birth: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[13px] font-medium">Gender <span className="text-destructive">*</span></Label>
+              <Select value={patientForm.gender} onValueChange={v => setPatientForm({ ...patientForm, gender: v })}>
+                <SelectTrigger><SelectValue placeholder="Select gender..." /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Male">Male</SelectItem>
+                  <SelectItem value="Female">Female</SelectItem>
+                  <SelectItem value="Other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[13px] font-medium">Contact Number</Label>
+              <Input
+                value={patientForm.contact_number}
+                onChange={e => setPatientForm({ ...patientForm, contact_number: e.target.value })}
+                placeholder="Optional"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[13px] font-medium">Notes</Label>
+              <Textarea
+                value={patientForm.notes}
+                onChange={e => setPatientForm({ ...patientForm, notes: e.target.value })}
+                placeholder="Optional"
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" className="rounded-lg" onClick={handleCancelNewPatient}>
+              Cancel
+            </Button>
+            <Button
+              className="rounded-lg"
+              onClick={handleCreatePatient}
+              disabled={creatingPatient || !newPatientValid}
+            >
+              {creatingPatient ? 'Creating...' : 'Create Patient'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -333,7 +333,7 @@ export default function DoctorSettings() {
       </div>
 
       <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Request Account Deletion</DialogTitle></DialogHeader>
           <p className="text-sm text-muted-foreground">
             Are you sure you want to request account deletion? All your data including patients and analyses will be permanently deleted. This action cannot be undone.
@@ -348,7 +348,7 @@ export default function DoctorSettings() {
       </Dialog>
 
       <Dialog open={showEmailChange} onOpenChange={setShowEmailChange}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Request Email Change</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">

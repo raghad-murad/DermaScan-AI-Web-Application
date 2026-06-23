@@ -198,7 +198,7 @@ export default function AdminTickets() {
 
       {/* View Ticket */}
       <Dialog open={!!viewTicket} onOpenChange={() => setViewTicket(null)}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Ticket Details</DialogTitle></DialogHeader>
           {viewTicket && (
             <div className="space-y-4">
@@ -219,7 +219,7 @@ export default function AdminTickets() {
 
       {/* Resolve Dialog */}
       <Dialog open={!!replyDialog} onOpenChange={() => setReplyDialog(null)}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Resolve Ticket</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">Optional reply message to the doctor:</p>
@@ -236,7 +236,7 @@ export default function AdminTickets() {
 
       {/* Update Email Confirmation Dialog */}
       <Dialog open={!!updateEmailDialog} onOpenChange={() => setUpdateEmailDialog(null)}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Update Doctor's Email</DialogTitle></DialogHeader>
           {updateEmailDialog && (() => {
             const parsed = parseEmailChangeRequest(updateEmailDialog.message);
@@ -265,7 +265,7 @@ export default function AdminTickets() {
 
       {/* Approve Deletion Confirmation Dialog */}
       <Dialog open={!!deletionDialog} onOpenChange={() => setDeletionDialog(null)}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Approve Account Deletion</DialogTitle></DialogHeader>
           <p className="text-sm text-muted-foreground">
             This will permanently delete the doctor's account and ALL their data (patients, analyses, tickets). This cannot be undone.

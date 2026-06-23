@@ -2,20 +2,19 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Stethoscope, FileText, Clock, LifeBuoy } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
-import { useQuery } from '@tanstack/react-query';
-import { base44 } from '@/api/base44Client';
 import { apiGet } from '@/lib/apiClient';
 
 export default function AdminOverview() {
-  const { data: users } = useQuery({
-    queryKey: ['all-users'],
-    queryFn: () => base44.entities.User.list(),
-    initialData: [],
-  });
-
+  const [doctorsCount, setDoctorsCount] = useState(0);
   const [totalCases, setTotalCases] = useState(0);
   const [pendingCount, setPendingCount] = useState(0);
   const [openTicketsCount, setOpenTicketsCount] = useState(0);
+
+  useEffect(() => {
+    apiGet<any[]>('/api/users/?role=doctor')
+      .then(data => setDoctorsCount(data.length))
+      .catch(() => setDoctorsCount(0));
+  }, []);
 
   useEffect(() => {
     apiGet<any[]>('/api/analysis/')
@@ -35,10 +34,8 @@ export default function AdminOverview() {
       .catch(() => setOpenTicketsCount(0));
   }, []);
 
-  const doctors = users.filter(u => u.role === 'user');
-
   const stats = [
-    { label: 'Active Doctors', value: doctors.length, icon: Stethoscope, color: 'bg-primary/10 text-primary' },
+    { label: 'Active Doctors', value: doctorsCount, icon: Stethoscope, color: 'bg-primary/10 text-primary' },
     { label: 'Total AI Cases', value: totalCases, icon: FileText, color: 'bg-secondary/10 text-secondary' },
     { label: 'Pending Requests', value: pendingCount, icon: Clock, color: pendingCount > 0 ? 'bg-yellow-500/10 text-yellow-600' : 'bg-muted text-muted-foreground', link: '/admin/requests' },
     { label: 'Open Tickets', value: openTicketsCount, icon: LifeBuoy, color: openTicketsCount > 0 ? 'bg-yellow-500/10 text-yellow-600' : 'bg-muted text-muted-foreground', link: '/admin/tickets' },

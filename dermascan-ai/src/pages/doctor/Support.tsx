@@ -122,7 +122,7 @@ export default function Support() {
 
         {/* Submit Ticket Dialog */}
         <Dialog open={showForm} onOpenChange={setShowForm}>
-          <DialogContent>
+          <DialogContent className="max-h-[90vh] overflow-y-auto">
             <DialogHeader><DialogTitle>Submit a Ticket</DialogTitle></DialogHeader>
             <div className="space-y-4">
               <div className="space-y-2">
@@ -156,7 +156,7 @@ export default function Support() {
 
         {/* View Ticket Dialog */}
         <Dialog open={!!viewTicket} onOpenChange={() => setViewTicket(null)}>
-          <DialogContent>
+          <DialogContent className="max-h-[90vh] overflow-y-auto">
             <DialogHeader><DialogTitle>Ticket Details</DialogTitle></DialogHeader>
             {viewTicket && (
               <div className="space-y-4">

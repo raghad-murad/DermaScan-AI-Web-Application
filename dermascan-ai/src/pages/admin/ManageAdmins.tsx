@@ -108,7 +108,7 @@ export default function ManageAdmins() {
       </Card>
 
       <Dialog open={showPanel} onOpenChange={setShowPanel}>
-        <DialogContent className="sm:max-w-[500px] border border-border rounded-xl p-6">
+        <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto border border-border rounded-xl p-6">
           <DialogHeader>
             <DialogTitle className="text-xl font-heading">Add Admin</DialogTitle>
           </DialogHeader>
