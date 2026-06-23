@@ -16,7 +16,7 @@ export default function AppLogo({ size = 'md', showName = true, className = '' }
       </div>
       {showName && (
         <span className={`${s.text} font-heading font-medium tracking-tight`}>
-          DermaScan<span className="text-primary">AI</span>
+          DermOra<span className="text-primary">AI</span>
         </span>
       )}
     </div>

@@ -23,7 +23,7 @@ export default function Guide() {
       <DoctorTopbar title="User Guide" />
       <div className="p-6 max-w-3xl space-y-8">
         <div>
-          <h2 className="text-2xl font-heading font-medium mb-2">How to Use DermaScan AI</h2>
+          <h2 className="text-2xl font-heading font-medium mb-2">How to Use DermOra AI</h2>
           <p className="text-muted-foreground">Follow these three simple steps to analyze skin lesions with AI assistance.</p>
         </div>
 

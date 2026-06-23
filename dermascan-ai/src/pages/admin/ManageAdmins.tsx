@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Plus, UserX, Trash2, Shield, Eye, EyeOff } from 'lucide-react'; 
+import React, { useState, useEffect } from 'react';
+import { Plus, Shield, Eye, EyeOff } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,38 +7,55 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { base44 } from '@/api/base44Client';
+import { apiGet, apiPost } from '@/lib/apiClient';
+import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/lib/AuthContext';
 import { format } from 'date-fns';
 
+const emptyForm = { full_name: '', email: '', username: '', password: '' };
+
 export default function ManageAdmins() {
   const { user } = useAuth();
-  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const [admins, setAdmins] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [showPanel, setShowPanel] = useState(false);
-  const [showPassword, setShowPassword] = useState(false); 
-  
-  const [form, setForm] = useState({ full_name: '', email: '', username: '', password: '' });
+  const [showPassword, setShowPassword] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [form, setForm] = useState(emptyForm);
 
-  const { data: users } = useQuery({
-    queryKey: ['all-users'],
-    queryFn: () => base44.entities.User.list(),
-    initialData: [],
-  });
+  const fetchAdmins = () => {
+    setLoading(true);
+    setError('');
+    return apiGet<any[]>('/api/users/?role=admin')
+      .then(data => setAdmins(data))
+      .catch(err => setError(err.message || 'Failed to load admins.'))
+      .finally(() => setLoading(false));
+  };
 
-  const admins = users.filter(u => u.role === 'admin');
+  useEffect(() => {
+    fetchAdmins();
+  }, []);
 
   const handleAddAdmin = async () => {
-    await (base44 as any).users.inviteUser(form.email, 'admin', form.password);
-    
-    await base44.entities.AuditLog.create({
-      actor_id: user?.id, actor_name: user?.full_name, actor_role: 'admin',
-      action: 'Created new admin account', target: form.full_name,
-    });
-    
-    queryClient.invalidateQueries({ queryKey: ['all-users'] });
-    setShowPanel(false);
-    setForm({ full_name: '', email: '', username: '', password: '' }); 
+    setCreating(true);
+    try {
+      await apiPost('/api/users/create-admin', {
+        full_name: form.full_name,
+        email: form.email,
+        username: `admin.${form.username}`,
+        password: form.password,
+      });
+      await fetchAdmins();
+      toast({ title: 'Admin created', description: `${form.full_name} can now sign in as an admin.` });
+      setShowPanel(false);
+      setForm(emptyForm);
+    } catch (err: any) {
+      toast({ title: 'Creation failed', description: err.message || 'Could not create admin.', variant: 'destructive' });
+    } finally {
+      setCreating(false);
+    }
   };
 
   return (
@@ -65,7 +82,11 @@ export default function ManageAdmins() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {admins.length === 0 ? (
+              {loading ? (
+                <TableRow><TableCell colSpan={4} className="text-center py-12 text-muted-foreground">Loading admins...</TableCell></TableRow>
+              ) : error ? (
+                <TableRow><TableCell colSpan={4} className="text-center py-12 text-destructive">{error}</TableCell></TableRow>
+              ) : admins.length === 0 ? (
                 <TableRow><TableCell colSpan={4} className="text-center py-12 text-muted-foreground">No admins found</TableCell></TableRow>
               ) : admins.map(a => (
                 <TableRow key={a.id}>
@@ -78,7 +99,7 @@ export default function ManageAdmins() {
                   </TableCell>
                   <TableCell>{a.email}</TableCell>
                   <TableCell><Badge variant="secondary" className="bg-primary/10 text-primary">Admin</Badge></TableCell>
-                  <TableCell>{format(new Date(a.created_date), 'dd MMM yyyy')}</TableCell>
+                  <TableCell>{a.created_at ? format(new Date(a.created_at), 'dd MMM yyyy') : '-'}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -91,18 +112,18 @@ export default function ManageAdmins() {
           <DialogHeader>
             <DialogTitle className="text-xl font-heading">Add Admin</DialogTitle>
           </DialogHeader>
-          
+
           <div className="space-y-4 mt-4">
             <div className="space-y-2">
               <Label className="text-[13px] font-bold text-primary">Full Name</Label>
               <Input placeholder="Admin's full name" value={form.full_name} onChange={e => setForm({ ...form, full_name: e.target.value })} />
             </div>
-            
+
             <div className="space-y-2">
               <Label className="text-[13px] font-bold text-primary">Email Address</Label>
               <Input type="email" placeholder="admin@example.com" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
             </div>
-            
+
             <div className="space-y-2">
               <Label className="text-[13px] font-bold text-primary">Preferred Username</Label>
               <div className="flex items-center gap-2">
@@ -114,10 +135,10 @@ export default function ManageAdmins() {
             <div className="space-y-2">
               <Label className="text-[13px] font-bold text-primary">Password</Label>
               <div className="relative">
-                <Input 
-                  type={showPassword ? "text" : "password"} 
-                  placeholder="Temporary password" 
-                  value={form.password} 
+                <Input
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="Temporary password"
+                  value={form.password}
                   onChange={e => setForm({ ...form, password: e.target.value })}
                   className="pr-10"
                 />
@@ -134,8 +155,8 @@ export default function ManageAdmins() {
 
           <DialogFooter className="mt-6 gap-2 sm:gap-0">
             <Button variant="outline" className="rounded-lg" onClick={() => setShowPanel(false)}>Cancel</Button>
-            <Button className="rounded-lg" onClick={handleAddAdmin} disabled={!form.email || !form.full_name || !form.password}>
-              Create Admin
+            <Button className="rounded-lg" onClick={handleAddAdmin} disabled={creating || !form.email || !form.full_name || !form.password}>
+              {creating ? 'Creating...' : 'Create Admin'}
             </Button>
           </DialogFooter>
         </DialogContent>

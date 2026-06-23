@@ -22,11 +22,23 @@ const AuthContext = createContext<any>(undefined);
 const loadUserProfile = async (firebaseUser: FirebaseUser) => {
   const snap = await getDoc(doc(db, 'users', firebaseUser.uid));
   if (!snap.exists()) return null;
+  const data = snap.data();
+  // TODO: remove this temporary diagnostic once field-loading is confirmed fixed in production.
+  console.log('[AuthContext] Firestore profile fields for', firebaseUser.uid, ':', data);
   return {
     uid: firebaseUser.uid,
     id: firebaseUser.uid,
     email: firebaseUser.email,
-    ...snap.data(),
+    ...data,
+    // Explicit fallbacks so these fields are always present on the context
+    // user object, even if the Firestore doc was created without them.
+    full_name: data.full_name || '',
+    role: data.role || '',
+    username: data.username || '',
+    phonenumber: data.phonenumber || '',
+    specialty: data.specialty || '',
+    hospital: data.hospital || '',
+    license_number: data.license_number || '',
   };
 };
 

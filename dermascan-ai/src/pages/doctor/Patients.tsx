@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, Eye, Pencil, Trash2, Search } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -9,54 +9,78 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useAuth } from '@/lib/AuthContext';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { base44 } from '@/api/base44Client';
-import { format, differenceInYears, parseISO } from 'date-fns';
+import { apiGet, apiPost, apiPut, apiDelete } from '@/lib/apiClient';
+import { useToast } from '@/components/ui/use-toast';
+import { differenceInYears, parseISO } from 'date-fns';
 import DoctorTopbar from '@/components/doctor/DoctorTopbar';
 
+const emptyForm = { full_name: '', date_of_birth: '', gender: 'Male', contact_number: '', notes: '' };
+
 export default function Patients() {
-  const { user } = useAuth();
-  const userId = user?.id;
-  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const [patients, setPatients] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [showAdd, setShowAdd] = useState(false);
-  const [editingPatient, setEditingPatient] = useState(null);
-  const [form, setForm] = useState({ full_name: '', date_of_birth: '', gender: 'Male', phone: '', address: '', medical_notes: '' });
+  const [editingPatient, setEditingPatient] = useState<any>(null);
+  const [form, setForm] = useState(emptyForm);
+  const [saving, setSaving] = useState(false);
 
-  const { data: patients } = useQuery({
-    queryKey: ['doctor-patients', userId],
-    queryFn: () => base44.entities.Patient.filter({ doctor_id: userId }),
-    initialData: [],
-    enabled: !!userId,
-  });
-
-  const filtered = patients.filter(p =>
-    p.full_name?.toLowerCase().includes(search.toLowerCase()) || p.phone?.includes(search)
-  );
-
-  const handleSave = async () => {
-    const age = form.date_of_birth ? differenceInYears(new Date(), parseISO(form.date_of_birth)) : 0;
-    if (editingPatient) {
-      await base44.entities.Patient.update(editingPatient.id, { ...form, age });
-    } else {
-      await base44.entities.Patient.create({ ...form, doctor_id: userId, age });
-    }
-    queryClient.invalidateQueries({ queryKey: ['doctor-patients'] });
-    setShowAdd(false);
-    setEditingPatient(null);
-    setForm({ full_name: '', date_of_birth: '', gender: 'Male', phone: '', address: '', medical_notes: '' });
+  const fetchPatients = () => {
+    setLoading(true);
+    setError('');
+    return apiGet<any[]>('/api/patients/')
+      .then(data => setPatients(data))
+      .catch(err => setError(err.message || 'Failed to load patients.'))
+      .finally(() => setLoading(false));
   };
 
-  const handleEdit = (p) => {
+  useEffect(() => {
+    fetchPatients();
+  }, []);
+
+  const filtered = patients.filter(p =>
+    p.full_name?.toLowerCase().includes(search.toLowerCase()) || p.contact_number?.includes(search)
+  );
+
+  const getAge = (dob: string) => dob ? differenceInYears(new Date(), parseISO(dob)) : null;
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      if (editingPatient) {
+        await apiPut(`/api/patients/${editingPatient.id}`, form);
+        toast({ title: 'Patient updated', description: `${form.full_name}'s record was updated.` });
+      } else {
+        await apiPost('/api/patients/', form);
+        toast({ title: 'Patient added', description: `${form.full_name} was added to your patient list.` });
+      }
+      await fetchPatients();
+      setShowAdd(false);
+      setEditingPatient(null);
+      setForm(emptyForm);
+    } catch (err: any) {
+      toast({ title: 'Save failed', description: err.message || 'Could not save patient.', variant: 'destructive' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleEdit = (p: any) => {
     setEditingPatient(p);
-    setForm({ full_name: p.full_name, date_of_birth: p.date_of_birth, gender: p.gender, phone: p.phone, address: p.address || '', medical_notes: p.medical_notes || '' });
+    setForm({ full_name: p.full_name || '', date_of_birth: p.date_of_birth || '', gender: p.gender || 'Male', contact_number: p.contact_number || '', notes: p.notes || '' });
     setShowAdd(true);
   };
 
-  const handleDelete = async (id) => {
-    await base44.entities.Patient.delete(id);
-    queryClient.invalidateQueries({ queryKey: ['doctor-patients'] });
+  const handleDelete = async (id: string) => {
+    try {
+      await apiDelete(`/api/patients/${id}`);
+      await fetchPatients();
+      toast({ title: 'Patient removed' });
+    } catch (err: any) {
+      toast({ title: 'Delete failed', description: err.message || 'Could not remove patient.', variant: 'destructive' });
+    }
   };
 
   return (
@@ -68,8 +92,8 @@ export default function Patients() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input placeholder="Search by name or phone..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
           </div>
-          <Button className="rounded-lg gap-2" onClick={() => { setEditingPatient(null); setForm({ full_name: '', date_of_birth: '', gender: 'Male', phone: '', address: '', medical_notes: '' }); setShowAdd(true); }}>
-            <Plus className="h-4 w-4" /> Add New Patient
+          <Button className="rounded-lg gap-2" onClick={() => { setEditingPatient(null); setForm(emptyForm); setShowAdd(true); }}>
+            <Plus className="h-4 w-4" /> New Patient
           </Button>
         </div>
 
@@ -79,25 +103,29 @@ export default function Patients() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Name</TableHead>
+                  <TableHead>Date of Birth</TableHead>
                   <TableHead>Age</TableHead>
                   <TableHead>Gender</TableHead>
-                  <TableHead>Phone</TableHead>
-                  <TableHead>Last Visit</TableHead>
-                  <TableHead>Analyses</TableHead>
+                  <TableHead>Contact Number</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filtered.length === 0 ? (
-                  <TableRow><TableCell colSpan={7} className="text-center py-12 text-muted-foreground">No patients found</TableCell></TableRow>
+                {loading ? (
+                  <TableRow><TableCell colSpan={6} className="text-center py-12 text-muted-foreground">Loading patients...</TableCell></TableRow>
+                ) : error ? (
+                  <TableRow><TableCell colSpan={6} className="text-center py-12 text-destructive">{error}</TableCell></TableRow>
+                ) : filtered.length === 0 ? (
+                  <TableRow><TableCell colSpan={6} className="text-center py-12 text-muted-foreground">No patients found</TableCell></TableRow>
                 ) : filtered.map(p => (
                   <TableRow key={p.id}>
-                    <TableCell className="font-medium">{p.full_name}</TableCell>
-                    <TableCell>{p.age}</TableCell>
-                    <TableCell>{p.gender}</TableCell>
-                    <TableCell>{p.phone}</TableCell>
-                    <TableCell>{p.last_visit ? format(new Date(p.last_visit), 'dd MMM yyyy') : '-'}</TableCell>
-                    <TableCell>{p.total_analyses || 0}</TableCell>
+                    <TableCell className="font-medium">
+                      <Link to={`/patients/${p.id}`} className="hover:underline">{p.full_name}</Link>
+                    </TableCell>
+                    <TableCell>{p.date_of_birth || '-'}</TableCell>
+                    <TableCell>{getAge(p.date_of_birth) ?? '-'}</TableCell>
+                    <TableCell>{p.gender || '-'}</TableCell>
+                    <TableCell>{p.contact_number || '-'}</TableCell>
                     <TableCell>
                       <div className="flex gap-1">
                         <Link to={`/patients/${p.id}`}>
@@ -117,14 +145,14 @@ export default function Patients() {
         <Dialog open={showAdd} onOpenChange={setShowAdd}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>{editingPatient ? 'Edit Patient' : 'Add New Patient'}</DialogTitle>
+              <DialogTitle>{editingPatient ? 'Edit Patient' : 'New Patient'}</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label className="text-[13px] font-medium">Full Name</Label>
                 <Input value={form.full_name} onChange={e => setForm({ ...form, full_name: e.target.value })} />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="text-[13px] font-medium">Date of Birth</Label>
                   <Input type="date" value={form.date_of_birth} onChange={e => setForm({ ...form, date_of_birth: e.target.value })} />
@@ -141,21 +169,19 @@ export default function Patients() {
                 </div>
               </div>
               <div className="space-y-2">
-                <Label className="text-[13px] font-medium">Phone</Label>
-                <Input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} />
+                <Label className="text-[13px] font-medium">Contact Number</Label>
+                <Input value={form.contact_number} onChange={e => setForm({ ...form, contact_number: e.target.value })} />
               </div>
               <div className="space-y-2">
-                <Label className="text-[13px] font-medium">Address</Label>
-                <Input value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-[13px] font-medium">Medical Notes</Label>
-                <Textarea value={form.medical_notes} onChange={e => setForm({ ...form, medical_notes: e.target.value })} />
+                <Label className="text-[13px] font-medium">Notes</Label>
+                <Textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} />
               </div>
             </div>
             <DialogFooter>
               <Button variant="outline" className="rounded-lg" onClick={() => setShowAdd(false)}>Cancel</Button>
-              <Button className="rounded-lg" onClick={handleSave} disabled={!form.full_name || !form.date_of_birth || !form.phone}>Save</Button>
+              <Button className="rounded-lg" onClick={handleSave} disabled={saving || !form.full_name || !form.date_of_birth || !form.contact_number}>
+                {saving ? 'Saving...' : 'Save'}
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

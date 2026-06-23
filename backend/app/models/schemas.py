@@ -40,6 +40,7 @@ class Analysis(BaseModel):
     top_predictions: list[Prediction]
     created_at: datetime
     status: str
+    notes: Optional[str] = None
 
 
 class AccountRequest(BaseModel):
@@ -52,6 +53,10 @@ class AccountRequest(BaseModel):
     status: str = "pending"  # pending/approved/rejected
     created_at: datetime
     admin_message: Optional[str] = None
+    preferred_password: Optional[str] = None
+    document_filename: Optional[str] = None
+    document_base64: Optional[str] = None
+    document_content_type: Optional[str] = None
 
 
 class SupportTicket(BaseModel):

@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Plus, Eye } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -10,42 +10,62 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { useAuth } from '@/lib/AuthContext';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { base44 } from '@/api/base44Client';
+import { apiGet, apiPost } from '@/lib/apiClient';
+import { useToast } from '@/components/ui/use-toast';
 import { format } from 'date-fns';
 import DoctorTopbar from '@/components/doctor/DoctorTopbar';
 
-const statusColors = {
-  pending: 'bg-yellow-500/10 text-yellow-600',
+const statusColors: Record<string, string> = {
+  open: 'bg-yellow-500/10 text-yellow-600',
   escalated: 'bg-primary/10 text-primary',
   resolved: 'bg-secondary/10 text-secondary',
+  closed: 'bg-secondary/10 text-secondary',
 };
+
+const emptyForm = { subject: '', category: 'Technical', message: '' };
 
 export default function Support() {
   const { user } = useAuth();
-  const userId = user?.id;
-  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const [tickets, setTickets] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [showForm, setShowForm] = useState(false);
-  const [viewTicket, setViewTicket] = useState(null);
-  const [form, setForm] = useState({ subject: '', category: 'Technical', description: '' });
+  const [viewTicket, setViewTicket] = useState<any>(null);
+  const [form, setForm] = useState(emptyForm);
+  const [submitting, setSubmitting] = useState(false);
 
-  const { data: tickets } = useQuery({
-    queryKey: ['doctor-tickets', userId],
-    queryFn: () => base44.entities.SupportTicket.filter({ doctor_id: userId }, '-created_date'),
-    initialData: [],
-    enabled: !!userId,
-  });
+  const fetchTickets = () => {
+    setLoading(true);
+    setError('');
+    return apiGet<any[]>('/api/support-tickets/')
+      .then(data => setTickets(data))
+      .catch(err => setError(err.message || 'Failed to load support tickets.'))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    fetchTickets();
+  }, []);
 
   const handleSubmit = async () => {
-    await base44.entities.SupportTicket.create({
-      ...form,
-      doctor_id: userId,
-      doctor_name: user?.full_name || 'Doctor',
-      status: 'pending',
-    });
-    queryClient.invalidateQueries({ queryKey: ['doctor-tickets'] });
-    setForm({ subject: '', category: 'Technical', description: '' });
-    setShowForm(false);
+    setSubmitting(true);
+    try {
+      await apiPost('/api/support-tickets/', {
+        subject: form.subject,
+        message: form.message,
+        category: form.category,
+        doctor_id: user?.uid || user?.id,
+      });
+      await fetchTickets();
+      toast({ title: 'Ticket submitted', description: 'Our team will get back to you soon.' });
+      setForm(emptyForm);
+      setShowForm(false);
+    } catch (err: any) {
+      toast({ title: 'Submission failed', description: err.message || 'Could not submit your ticket.', variant: 'destructive' });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -72,16 +92,20 @@ export default function Support() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {tickets.length === 0 ? (
+                {loading ? (
+                  <TableRow><TableCell colSpan={5} className="text-center py-12 text-muted-foreground">Loading tickets...</TableCell></TableRow>
+                ) : error ? (
+                  <TableRow><TableCell colSpan={5} className="text-center py-12 text-destructive">{error}</TableCell></TableRow>
+                ) : tickets.length === 0 ? (
                   <TableRow><TableCell colSpan={5} className="text-center py-12 text-muted-foreground">No tickets submitted</TableCell></TableRow>
                 ) : tickets.map(t => (
                   <TableRow key={t.id}>
                     <TableCell className="font-medium">{t.subject}</TableCell>
-                    <TableCell>{t.category}</TableCell>
-                    <TableCell>{format(new Date(t.created_date), 'dd MMM yyyy')}</TableCell>
+                    <TableCell>{t.category || '-'}</TableCell>
+                    <TableCell>{t.created_at ? format(new Date(t.created_at), 'dd MMM yyyy') : '-'}</TableCell>
                     <TableCell>
-                      <Badge variant="secondary" className={statusColors[t.status]}>
-                        {t.status === 'escalated' ? 'Escalated to IT' : t.status.charAt(0).toUpperCase() + t.status.slice(1)}
+                      <Badge variant="secondary" className={statusColors[t.status] || statusColors.open}>
+                        {t.status === 'escalated' ? 'Escalated to IT' : (t.status?.charAt(0).toUpperCase() + t.status?.slice(1))}
                       </Badge>
                     </TableCell>
                     <TableCell>
@@ -118,12 +142,14 @@ export default function Support() {
               </div>
               <div className="space-y-2">
                 <Label className="text-[13px] font-medium">Description</Label>
-                <Textarea rows={4} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} />
+                <Textarea rows={4} value={form.message} onChange={e => setForm({ ...form, message: e.target.value })} />
               </div>
             </div>
             <DialogFooter>
               <Button variant="outline" className="rounded-lg" onClick={() => setShowForm(false)}>Cancel</Button>
-              <Button className="rounded-lg" onClick={handleSubmit} disabled={!form.subject || !form.description}>Submit</Button>
+              <Button className="rounded-lg" onClick={handleSubmit} disabled={submitting || !form.subject || !form.message}>
+                {submitting ? 'Submitting...' : 'Submit'}
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -135,9 +161,9 @@ export default function Support() {
             {viewTicket && (
               <div className="space-y-4">
                 <div><p className="text-xs text-muted-foreground">Subject</p><p className="text-sm font-medium">{viewTicket.subject}</p></div>
-                <div><p className="text-xs text-muted-foreground">Category</p><p className="text-sm">{viewTicket.category}</p></div>
-                <div><p className="text-xs text-muted-foreground">Status</p><Badge variant="secondary" className={statusColors[viewTicket.status]}>{viewTicket.status}</Badge></div>
-                <div><p className="text-xs text-muted-foreground">Description</p><p className="text-sm">{viewTicket.description}</p></div>
+                <div><p className="text-xs text-muted-foreground">Category</p><p className="text-sm">{viewTicket.category || '-'}</p></div>
+                <div><p className="text-xs text-muted-foreground">Status</p><Badge variant="secondary" className={statusColors[viewTicket.status] || statusColors.open}>{viewTicket.status}</Badge></div>
+                <div><p className="text-xs text-muted-foreground">Description</p><p className="text-sm">{viewTicket.message}</p></div>
                 {viewTicket.admin_reply && (
                   <div className="p-3 bg-muted rounded-lg">
                     <p className="text-xs text-muted-foreground mb-1">Admin Response</p>

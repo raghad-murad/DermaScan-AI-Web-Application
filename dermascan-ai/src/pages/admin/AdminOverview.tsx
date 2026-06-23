@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Stethoscope, FileText, Clock, LifeBuoy } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
+import { apiGet } from '@/lib/apiClient';
 
 export default function AdminOverview() {
   const { data: users } = useQuery({
@@ -12,31 +13,35 @@ export default function AdminOverview() {
     initialData: [],
   });
 
-  const { data: analyses } = useQuery({
-    queryKey: ['all-analyses'],
-    queryFn: () => base44.entities.Analysis.list('-created_date', 1000),
-    initialData: [],
-  });
+  const [totalCases, setTotalCases] = useState(0);
+  const [pendingCount, setPendingCount] = useState(0);
+  const [openTicketsCount, setOpenTicketsCount] = useState(0);
 
-  const { data: pendingRequests } = useQuery({
-    queryKey: ['pending-requests-count'],
-    queryFn: () => base44.entities.AccountRequest.filter({ status: 'pending' }),
-    initialData: [],
-  });
+  useEffect(() => {
+    apiGet<any[]>('/api/analysis/')
+      .then(data => setTotalCases(data.length))
+      .catch(() => setTotalCases(0));
+  }, []);
 
-  const { data: openTickets } = useQuery({
-    queryKey: ['open-tickets'],
-    queryFn: () => base44.entities.SupportTicket.filter({ status: 'pending' }),
-    initialData: [],
-  });
+  useEffect(() => {
+    apiGet<any[]>('/api/account-requests/')
+      .then(data => setPendingCount(data.filter(r => r.status === 'pending').length))
+      .catch(() => setPendingCount(0));
+  }, []);
+
+  useEffect(() => {
+    apiGet<any[]>('/api/support-tickets/')
+      .then(data => setOpenTicketsCount(data.filter(t => t.status === 'open').length))
+      .catch(() => setOpenTicketsCount(0));
+  }, []);
 
   const doctors = users.filter(u => u.role === 'user');
 
   const stats = [
     { label: 'Active Doctors', value: doctors.length, icon: Stethoscope, color: 'bg-primary/10 text-primary' },
-    { label: 'Total AI Cases', value: analyses.length, icon: FileText, color: 'bg-secondary/10 text-secondary' },
-    { label: 'Pending Requests', value: pendingRequests.length, icon: Clock, color: pendingRequests.length > 0 ? 'bg-yellow-500/10 text-yellow-600' : 'bg-muted text-muted-foreground', link: '/admin/requests' },
-    { label: 'Open Tickets', value: openTickets.length, icon: LifeBuoy, color: openTickets.length > 0 ? 'bg-yellow-500/10 text-yellow-600' : 'bg-muted text-muted-foreground', link: '/admin/tickets' },
+    { label: 'Total AI Cases', value: totalCases, icon: FileText, color: 'bg-secondary/10 text-secondary' },
+    { label: 'Pending Requests', value: pendingCount, icon: Clock, color: pendingCount > 0 ? 'bg-yellow-500/10 text-yellow-600' : 'bg-muted text-muted-foreground', link: '/admin/requests' },
+    { label: 'Open Tickets', value: openTicketsCount, icon: LifeBuoy, color: openTicketsCount > 0 ? 'bg-yellow-500/10 text-yellow-600' : 'bg-muted text-muted-foreground', link: '/admin/tickets' },
   ];
 
   return (

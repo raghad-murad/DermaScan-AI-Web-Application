@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Eye, Check, HelpCircle, X } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Eye, EyeOff, Check, X, Download, ExternalLink } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -7,87 +7,136 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { base44 } from '@/api/base44Client';
+import { apiGet, apiPut, apiPost } from '@/lib/apiClient';
+import { useToast } from '@/components/ui/use-toast';
 import { format } from 'date-fns';
-import { useAuth } from '@/lib/AuthContext';
 
-const statusColors = {
+const statusColors: Record<string, string> = {
   pending: 'bg-yellow-500/10 text-yellow-600',
   approved: 'bg-secondary/10 text-secondary',
   rejected: 'bg-destructive/10 text-destructive',
-  more_info: 'bg-primary/10 text-primary',
 };
 
-const moreInfoTemplates = [
-  'License document is unclear or unreadable',
-  'Medical license number not found in registry',
-  'Missing required field',
-  'Custom message...',
-];
+const emptyDoctorForm = { full_name: '', email: '', specialty: '', hospital: '', license_number: '', username: '', phonenumber: '', password: '' };
 
 export default function AccountRequests() {
-  const { user } = useAuth();
-  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const [requests, setRequests] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [tab, setTab] = useState('all');
-  const [viewRequest, setViewRequest] = useState(null);
-  const [rejectDialog, setRejectDialog] = useState(null);
-  const [moreInfoDialog, setMoreInfoDialog] = useState(null);
+  const [viewRequest, setViewRequest] = useState<any>(null);
+  const [rejectDialog, setRejectDialog] = useState<any>(null);
   const [rejectReason, setRejectReason] = useState('');
-  const [moreInfoMsg, setMoreInfoMsg] = useState('');
+  const [actioningId, setActioningId] = useState<string | null>(null);
 
-  const { data: requests } = useQuery({
-    queryKey: ['account-requests'],
-    queryFn: () => base44.entities.AccountRequest.list('-created_date', 100),
-    initialData: [],
-  });
+  const [showCreateDoctor, setShowCreateDoctor] = useState(false);
+  const [doctorForm, setDoctorForm] = useState(emptyDoctorForm);
+  const [creatingDoctor, setCreatingDoctor] = useState(false);
+  const [showDoctorPassword, setShowDoctorPassword] = useState(false);
+
+  const base64ToBlobUrl = (base64: string, contentType: string) => {
+    const byteChars = atob(base64);
+    const byteArray = new Uint8Array([...byteChars].map(c => c.charCodeAt(0)));
+    const blob = new Blob([byteArray], { type: contentType });
+    return URL.createObjectURL(blob);
+  };
+
+  const handleViewDocument = (request: any) => {
+    const url = base64ToBlobUrl(request.document_base64, request.document_content_type);
+    window.open(url, '_blank');
+  };
+
+  const handleDownloadDocument = (request: any) => {
+    const url = base64ToBlobUrl(request.document_base64, request.document_content_type);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = request.document_filename || 'document';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const fetchRequests = () => {
+    setLoading(true);
+    setError('');
+    return apiGet<any[]>('/api/account-requests/')
+      .then(data => setRequests(data))
+      .catch(err => setError(err.message || 'Failed to load account requests.'))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    fetchRequests();
+  }, []);
 
   const filtered = tab === 'all' ? requests : requests.filter(r => r.status === tab);
 
-  const handleApprove = async (req) => {
-    await base44.entities.AccountRequest.update(req.id, {
-      status: 'approved',
-      reviewed_by: user?.full_name,
-      reviewed_at: new Date().toISOString(),
-    });
-    await base44.entities.AuditLog.create({
-      actor_id: user?.id, actor_name: user?.full_name, actor_role: 'admin',
-      action: 'Approved doctor account request', target: req.full_name,
-    });
-    queryClient.invalidateQueries({ queryKey: ['account-requests'] });
-    queryClient.invalidateQueries({ queryKey: ['pending-requests-count'] });
-    setViewRequest(null);
+  const handleApprove = async (req: any) => {
+    setActioningId(req.id);
+    try {
+      await apiPut(`/api/account-requests/${req.id}`, { status: 'approved' });
+      await fetchRequests();
+      toast({ title: 'Request approved', description: `${req.full_name}'s account request was approved.` });
+      setViewRequest(null);
+      setDoctorForm({
+        full_name: req.full_name || '',
+        email: req.email || '',
+        specialty: req.specialty || '',
+        hospital: req.hospital || '',
+        license_number: req.license_number || '',
+        username: (req.preferred_username || '').replace(/^dr\./, ''),
+        phonenumber: req.phone || '',
+        password: req.preferred_password || '',
+      });
+      setShowCreateDoctor(true);
+    } catch (err: any) {
+      toast({ title: 'Approval failed', description: err.message || 'Could not approve request.', variant: 'destructive' });
+    } finally {
+      setActioningId(null);
+    }
   };
 
   const handleReject = async () => {
-    await base44.entities.AccountRequest.update(rejectDialog.id, {
-      status: 'rejected',
-      admin_message: rejectReason,
-      reviewed_by: user?.full_name,
-      reviewed_at: new Date().toISOString(),
-    });
-    await base44.entities.AuditLog.create({
-      actor_id: user?.id, actor_name: user?.full_name, actor_role: 'admin',
-      action: 'Rejected doctor account request', target: rejectDialog.full_name, details: rejectReason,
-    });
-    queryClient.invalidateQueries({ queryKey: ['account-requests'] });
-    queryClient.invalidateQueries({ queryKey: ['pending-requests-count'] });
-    setRejectDialog(null);
-    setRejectReason('');
+    setActioningId(rejectDialog.id);
+    try {
+      await apiPut(`/api/account-requests/${rejectDialog.id}`, { status: 'rejected', admin_message: rejectReason });
+      await fetchRequests();
+      toast({ title: 'Request rejected', description: `${rejectDialog.full_name}'s account request was rejected.` });
+      setRejectDialog(null);
+      setRejectReason('');
+    } catch (err: any) {
+      toast({ title: 'Rejection failed', description: err.message || 'Could not reject request.', variant: 'destructive' });
+    } finally {
+      setActioningId(null);
+    }
   };
 
-  const handleMoreInfo = async () => {
-    await base44.entities.AccountRequest.update(moreInfoDialog.id, {
-      status: 'more_info',
-      admin_message: moreInfoMsg,
-      reviewed_by: user?.full_name,
-    });
-    queryClient.invalidateQueries({ queryKey: ['account-requests'] });
-    setMoreInfoDialog(null);
-    setMoreInfoMsg('');
+  const handleCreateDoctor = async () => {
+    setCreatingDoctor(true);
+    try {
+      await apiPost('/api/users/create-doctor', {
+        full_name: doctorForm.full_name,
+        email: doctorForm.email,
+        specialty: doctorForm.specialty,
+        hospital: doctorForm.hospital,
+        license_number: doctorForm.license_number,
+        username: doctorForm.username,
+        phonenumber: doctorForm.phonenumber,
+        password: doctorForm.password,
+      });
+      toast({ title: 'Doctor account created successfully' });
+      setShowCreateDoctor(false);
+      setDoctorForm(emptyDoctorForm);
+      await fetchRequests();
+    } catch (err: any) {
+      toast({ title: 'Account creation failed', description: err.message || 'Could not create the doctor account.', variant: 'destructive' });
+    } finally {
+      setCreatingDoctor(false);
+    }
   };
 
   return (
@@ -100,7 +149,6 @@ export default function AccountRequests() {
           <TabsTrigger value="pending">Pending</TabsTrigger>
           <TabsTrigger value="approved">Approved</TabsTrigger>
           <TabsTrigger value="rejected">Rejected</TabsTrigger>
-          <TabsTrigger value="more_info">More Info Needed</TabsTrigger>
         </TabsList>
       </Tabs>
 
@@ -110,27 +158,31 @@ export default function AccountRequests() {
             <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead>
+                <TableHead>Email</TableHead>
                 <TableHead>Specialty</TableHead>
                 <TableHead>Hospital</TableHead>
                 <TableHead>License No.</TableHead>
-                <TableHead>Submitted</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.length === 0 ? (
+              {loading ? (
+                <TableRow><TableCell colSpan={7} className="text-center py-12 text-muted-foreground">Loading account requests...</TableCell></TableRow>
+              ) : error ? (
+                <TableRow><TableCell colSpan={7} className="text-center py-12 text-destructive">{error}</TableCell></TableRow>
+              ) : filtered.length === 0 ? (
                 <TableRow><TableCell colSpan={7} className="text-center py-12 text-muted-foreground">No requests found</TableCell></TableRow>
               ) : filtered.map(r => (
                 <TableRow key={r.id}>
                   <TableCell className="font-medium">{r.full_name}</TableCell>
+                  <TableCell>{r.email}</TableCell>
                   <TableCell>{r.specialty}</TableCell>
                   <TableCell>{r.hospital}</TableCell>
                   <TableCell>{r.license_number}</TableCell>
-                  <TableCell>{format(new Date(r.created_date), 'dd MMM yyyy')}</TableCell>
                   <TableCell>
                     <Badge variant="secondary" className={statusColors[r.status]}>
-                      {r.status === 'more_info' ? 'More Info' : r.status.charAt(0).toUpperCase() + r.status.slice(1)}
+                      {r.status?.charAt(0).toUpperCase() + r.status?.slice(1)}
                     </Badge>
                   </TableCell>
                   <TableCell>
@@ -140,13 +192,10 @@ export default function AccountRequests() {
                       </Button>
                       {r.status === 'pending' && (
                         <>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-secondary" onClick={() => handleApprove(r)}>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-secondary" disabled={actioningId === r.id} onClick={() => handleApprove(r)}>
                             <Check className="h-3.5 w-3.5" />
                           </Button>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-primary" onClick={() => { setMoreInfoDialog(r); setMoreInfoMsg(''); }}>
-                            <HelpCircle className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => { setRejectDialog(r); setRejectReason(''); }}>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" disabled={actioningId === r.id} onClick={() => { setRejectDialog(r); setRejectReason(''); }}>
                             <X className="h-3.5 w-3.5" />
                           </Button>
                         </>
@@ -160,41 +209,47 @@ export default function AccountRequests() {
         </CardContent>
       </Card>
 
-      {/* View Details Sheet */}
-      <Sheet open={!!viewRequest} onOpenChange={() => setViewRequest(null)}>
-        <SheetContent className="overflow-y-auto">
-          <SheetHeader><SheetTitle>Request Details</SheetTitle></SheetHeader>
+      {/* View Details Modal */}
+      <Dialog open={!!viewRequest} onOpenChange={() => setViewRequest(null)}>
+        <DialogContent className="sm:max-w-[550px] max-h-[85vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Request Details</DialogTitle></DialogHeader>
           {viewRequest && (
-            <div className="space-y-5 mt-6">
+            <div className="space-y-5">
               {[
                 ['Full Name', viewRequest.full_name],
                 ['Email', viewRequest.email],
-                ['Phone', viewRequest.phone],
                 ['Specialty', viewRequest.specialty],
                 ['Hospital', viewRequest.hospital],
                 ['License Number', viewRequest.license_number],
-                ['License Authority', viewRequest.license_authority],
-                ['Preferred Username', viewRequest.preferred_username],
-                ['Submitted', format(new Date(viewRequest.created_date), 'dd MMM yyyy HH:mm')],
+                ['Preferred Password', viewRequest.preferred_password],
+                ['Status', viewRequest.status],
+                ['Admin Message', viewRequest.admin_message],
               ].map(([label, val]) => (
                 <div key={label}>
                   <p className="text-xs text-muted-foreground font-medium">{label}</p>
                   <p className="text-sm mt-0.5">{val || '-'}</p>
                 </div>
               ))}
-              {viewRequest.document_url && (
-                <div>
-                  <p className="text-xs text-muted-foreground font-medium mb-1">License Document</p>
-                  <a href={viewRequest.document_url} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline">View Document</a>
+              <div>
+                <p className="text-xs text-muted-foreground font-medium">Document</p>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <p className="text-sm">{viewRequest.document_base64 ? (viewRequest.document_filename || 'document') : 'No document uploaded'}</p>
+                  {viewRequest.document_base64 && (
+                    <>
+                      <Button variant="outline" size="sm" className="h-7 rounded-md gap-1 px-2" onClick={() => handleViewDocument(viewRequest)}>
+                        <ExternalLink className="h-3 w-3" /> View
+                      </Button>
+                      <Button variant="outline" size="sm" className="h-7 rounded-md gap-1 px-2" onClick={() => handleDownloadDocument(viewRequest)}>
+                        <Download className="h-3 w-3" /> Download
+                      </Button>
+                    </>
+                  )}
                 </div>
-              )}
+              </div>
               {viewRequest.status === 'pending' && (
                 <div className="flex gap-2 pt-4 border-t border-border">
-                  <Button className="rounded-lg gap-1.5" size="sm" onClick={() => handleApprove(viewRequest)}>
+                  <Button className="rounded-lg gap-1.5" size="sm" disabled={actioningId === viewRequest.id} onClick={() => handleApprove(viewRequest)}>
                     <Check className="h-3.5 w-3.5" /> Approve
-                  </Button>
-                  <Button variant="outline" className="rounded-lg gap-1.5" size="sm" onClick={() => { setMoreInfoDialog(viewRequest); setViewRequest(null); }}>
-                    <HelpCircle className="h-3.5 w-3.5" /> More Info
                   </Button>
                   <Button variant="destructive" className="rounded-lg gap-1.5" size="sm" onClick={() => { setRejectDialog(viewRequest); setViewRequest(null); }}>
                     <X className="h-3.5 w-3.5" /> Reject
@@ -203,43 +258,85 @@ export default function AccountRequests() {
               )}
             </div>
           )}
-        </SheetContent>
-      </Sheet>
+        </DialogContent>
+      </Dialog>
 
       {/* Reject Dialog */}
       <Dialog open={!!rejectDialog} onOpenChange={() => setRejectDialog(null)}>
         <DialogContent>
           <DialogHeader><DialogTitle>Reject Request</DialogTitle></DialogHeader>
           <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">Provide a reason for rejecting {rejectDialog?.full_name}'s request. This will be sent in the rejection email.</p>
+            <p className="text-sm text-muted-foreground">Provide a reason for rejecting {rejectDialog?.full_name}'s request.</p>
             <Textarea placeholder="Reason for rejection..." value={rejectReason} onChange={e => setRejectReason(e.target.value)} rows={4} />
           </div>
           <DialogFooter>
             <Button variant="outline" className="rounded-lg" onClick={() => setRejectDialog(null)}>Cancel</Button>
-            <Button variant="destructive" className="rounded-lg" onClick={handleReject} disabled={!rejectReason}>Reject</Button>
+            <Button variant="destructive" className="rounded-lg" onClick={handleReject} disabled={!rejectReason || actioningId === rejectDialog?.id}>Reject</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* More Info Dialog */}
-      <Dialog open={!!moreInfoDialog} onOpenChange={() => setMoreInfoDialog(null)}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Request More Information</DialogTitle></DialogHeader>
+      {/* Create Doctor Account Modal (post-approval) */}
+      <Dialog open={showCreateDoctor} onOpenChange={setShowCreateDoctor}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader><DialogTitle>Create Doctor Account</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label className="text-[13px] font-medium">Select a template or write custom message</Label>
-              <Select onValueChange={v => setMoreInfoMsg(v === 'Custom message...' ? '' : v)}>
-                <SelectTrigger><SelectValue placeholder="Select template..." /></SelectTrigger>
-                <SelectContent>
-                  {moreInfoTemplates.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <Label className="text-[13px] font-medium">Full Name</Label>
+              <Input value={doctorForm.full_name} onChange={e => setDoctorForm({ ...doctorForm, full_name: e.target.value })} />
             </div>
-            <Textarea placeholder="Message to the applicant..." value={moreInfoMsg} onChange={e => setMoreInfoMsg(e.target.value)} rows={4} />
+            <div className="space-y-2">
+              <Label className="text-[13px] font-medium">Email</Label>
+              <Input type="email" value={doctorForm.email} onChange={e => setDoctorForm({ ...doctorForm, email: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[13px] font-medium">Specialty</Label>
+              <Input value={doctorForm.specialty} onChange={e => setDoctorForm({ ...doctorForm, specialty: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[13px] font-medium">Hospital</Label>
+              <Input value={doctorForm.hospital} onChange={e => setDoctorForm({ ...doctorForm, hospital: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[13px] font-medium">License Number</Label>
+              <Input value={doctorForm.license_number} onChange={e => setDoctorForm({ ...doctorForm, license_number: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[13px] font-medium">Username</Label>
+              <Input value={doctorForm.username} onChange={e => setDoctorForm({ ...doctorForm, username: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[13px] font-medium">Phone Number</Label>
+              <Input value={doctorForm.phonenumber} onChange={e => setDoctorForm({ ...doctorForm, phonenumber: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[13px] font-medium">Password</Label>
+              <div className="relative">
+                <Input
+                  type={showDoctorPassword ? 'text' : 'password'}
+                  value={doctorForm.password}
+                  onChange={e => setDoctorForm({ ...doctorForm, password: e.target.value })}
+                  className="pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowDoctorPassword(!showDoctorPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  {showDoctorPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+            </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" className="rounded-lg" onClick={() => setMoreInfoDialog(null)}>Cancel</Button>
-            <Button className="rounded-lg" onClick={handleMoreInfo} disabled={!moreInfoMsg}>Send</Button>
+            <Button variant="outline" className="rounded-lg" onClick={() => setShowCreateDoctor(false)}>Cancel</Button>
+            <Button
+              className="rounded-lg"
+              onClick={handleCreateDoctor}
+              disabled={creatingDoctor || !doctorForm.full_name || !doctorForm.email || !doctorForm.password}
+            >
+              {creatingDoctor ? 'Creating...' : 'Create Account'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

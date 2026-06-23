@@ -316,7 +316,7 @@ export default function Landing() {
             the responsibility of the licensed medical professional.
           </p>
           <p className="text-xs text-muted-foreground">
-            &copy; {new Date().getFullYear()} DermaScan AI. All rights reserved.
+            &copy; {new Date().getFullYear()} DermOra AI. All rights reserved.
           </p>
         </div>
       </footer>

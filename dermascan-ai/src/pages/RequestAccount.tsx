@@ -7,47 +7,61 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
 import ThemeToggle from '@/components/ThemeToggle';
-import { base44 } from '@/api/base44Client';
+import { apiPost } from '@/lib/apiClient';
 
 const specialtiesList = ['Dermatology', 'General Practice', 'Internal Medicine', 'Oncology', 'Pathology', 'Immunology'];
+
+// Reads a File and resolves with its raw Base64 payload (no "data:...;base64," prefix),
+// since that's what the blob-reconstruction code on the admin side expects to atob().
+const fileToBase64 = (file: File): Promise<string> => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = () => resolve((reader.result as string).split(',')[1] || '');
+  reader.onerror = reject;
+  reader.readAsDataURL(file);
+});
 
 export default function RequestAccount() {
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const [form, setForm] = useState({
     full_name: '', email: '', phone: '', specialty: '', hospital: '',
     license_number: '', license_authority: '', preferred_username: '',
-    password: '', confirm_password: '',
+    preferred_password: '', confirm_password: '',
   });
-  const [docFile, setDocFile] = useState(null);
+  const [docFile, setDocFile] = useState<File | null>(null);
 
-  const updateField = (field, value) => setForm(prev => ({ ...prev, [field]: value }));
+  const updateField = (field: string, value: string) => setForm(prev => ({ ...prev, [field]: value }));
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (form.password !== form.confirm_password) return;
+    setError('');
+
+    if (form.preferred_password !== form.confirm_password) {
+      setError('Passwords do not match.');
+      return;
+    }
+
     setLoading(true);
-    let document_url = '';
     try {
-      if (docFile) {
-        const { file_url } = await base44.integrations.Core.UploadFile({ file: docFile });
-        document_url = file_url;
-      }
-      await base44.entities.AccountRequest.create({
+      const document_base64 = docFile ? await fileToBase64(docFile) : null;
+      await apiPost('/api/account-requests/', {
         full_name: form.full_name,
         email: form.email,
         phone: form.phone,
-        specialty: form.specialty, 
+        specialty: form.specialty,
         hospital: form.hospital,
         license_number: form.license_number,
         license_authority: form.license_authority,
-        document_url,
         preferred_username: `dr.${form.preferred_username}`,
-        status: 'pending',
+        preferred_password: form.preferred_password,
+        document_filename: docFile?.name || null,
+        document_base64,
+        document_content_type: docFile?.type || null,
       });
       setSubmitted(true);
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      setError(err.message || 'Failed to submit your request. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -63,7 +77,7 @@ export default function RequestAccount() {
             </div>
             <h2 className="text-2xl font-heading font-medium">Request submitted successfully, Doctor!</h2>
             <p className="text-muted-foreground leading-relaxed">
-              Your request is now under review by our medical platform administration team to ensure the security and privacy of all cases. 
+              Your request is now under review by our medical platform administration team to ensure the security and privacy of all cases.
               You will receive an email notification with your account activation within 24-48 hours.
             </p>
             <Link to="/login">
@@ -88,13 +102,17 @@ export default function RequestAccount() {
 
       <div className="max-w-3xl mx-auto px-4 pt-24 pb-16">
         <div className="bg-card text-card-foreground rounded-2xl p-6 sm:p-10 border border-border/50 shadow-[0_20px_50px_rgba(0,0,0,0.15)] dark:shadow-[0_20px_50px_rgba(0,0,0,0.3)] transition-all">
-          
+
           <div className="mb-10">
             <h1 className="text-3xl font-heading font-bold mb-2">Request a Doctor Account</h1>
             <p className="text-muted-foreground">Your request will be manually reviewed by our admin team to verify your medical credentials.</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-10">
+            {error && (
+              <div className="p-3 rounded-lg bg-destructive/10 text-destructive text-sm">{error}</div>
+            )}
+
             {/* Section 1 */}
             <div className="space-y-5">
               <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Basic Personal Info</h3>
@@ -118,16 +136,16 @@ export default function RequestAccount() {
             <div className="space-y-5">
               <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Professional Info</h3>
               <div className="grid sm:grid-cols-2 gap-4">
-                
+
                 <div className="space-y-2">
                   <Label className="text-[13px] font-bold text-primary">Medical Specialty</Label>
-                  <Input 
+                  <Input
                     list="request-specialties-options"
-                    placeholder="Select or type your specialty..." 
-                    value={form.specialty} 
+                    placeholder="Select or type your specialty..."
+                    value={form.specialty}
                     onChange={e => updateField('specialty', e.target.value)}
                     className="border-black focus-visible:ring-black dark:border-white"
-                    required 
+                    required
                   />
                   <datalist id="request-specialties-options">
                     {specialtiesList.map(s => <option key={s} value={s} />)}
@@ -144,8 +162,8 @@ export default function RequestAccount() {
                 </div>
                 <div className="space-y-2">
                   <Label className="text-[13px] font-bold text-primary">License Issuing Authority</Label>
-                  <Select 
-                    value={form.license_authority} 
+                  <Select
+                    value={form.license_authority}
                     onValueChange={value => updateField('license_authority', value)}
                   >
                     <SelectTrigger className="w-full border-black focus:ring-black dark:border-white">
@@ -171,14 +189,15 @@ export default function RequestAccount() {
             <div className="space-y-5">
               <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Verification Documents</h3>
               <div className="space-y-2">
-                <Label className="text-[13px] font-bold text-primary">Upload Practice License or Syndicate ID</Label>
-                <label className="flex flex-col items-center justify-center h-32 border-2 border-dashed border-black dark:border-white rounded-xl cursor-pointer hover:bg-muted/50 transition-colors">
+                <Label className="text-[13px] font-bold text-primary">License Document / Certificate</Label>
+                <label className="flex flex-col items-center justify-center h-28 border-2 border-dashed border-black dark:border-white rounded-xl cursor-pointer hover:bg-muted/50 transition-colors">
                   <Upload className="h-6 w-6 text-muted-foreground mb-2" />
                   <span className="text-sm text-muted-foreground">
-                    {docFile ? docFile.name : 'Click to upload (PDF or image)'}
+                    {docFile ? docFile.name : 'Click to upload (optional)'}
                   </span>
-                  <input type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png" onChange={e => setDocFile(e.target.files[0])} />
+                  <input type="file" className="hidden" accept="image/*,.pdf" onChange={e => setDocFile(e.target.files?.[0] || null)} />
                 </label>
+                <p className="text-[11px] text-muted-foreground">Your document is stored securely and reviewed by our admin team.</p>
               </div>
             </div>
 
@@ -194,20 +213,20 @@ export default function RequestAccount() {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-[13px] font-bold text-primary">Password</Label>
-                  <Input type="password" className="border-black focus-visible:ring-black dark:border-white" value={form.password} onChange={e => updateField('password', e.target.value)} required />
+                  <Label className="text-[13px] font-bold text-primary">Preferred Password</Label>
+                  <Input type="password" className="border-black focus-visible:ring-black dark:border-white" value={form.preferred_password} onChange={e => updateField('preferred_password', e.target.value)} required />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-[13px] font-bold text-primary">Confirm Password</Label>
                   <Input type="password" className="border-black focus-visible:ring-black dark:border-white" value={form.confirm_password} onChange={e => updateField('confirm_password', e.target.value)} required />
-                  {form.confirm_password && form.password !== form.confirm_password && (
+                  {form.confirm_password && form.preferred_password !== form.confirm_password && (
                     <p className="text-xs text-destructive">Passwords do not match</p>
                   )}
                 </div>
               </div>
             </div>
 
-            <Button type="submit" className="w-full rounded-lg h-12 text-base" disabled={loading}>
+            <Button type="submit" className="w-full rounded-lg h-12 text-base" disabled={loading || (!!form.confirm_password && form.preferred_password !== form.confirm_password)}>
               {loading ? 'Submitting...' : 'Submit Join Request'}
             </Button>
           </form>

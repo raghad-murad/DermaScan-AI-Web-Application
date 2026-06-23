@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.routers import account_requests, analysis, patients, support_tickets, users
 
-app = FastAPI(title="DermaScan AI Backend")
+app = FastAPI(title="DermOra AI Backend")
 
 app.add_middleware(
     CORSMiddleware,
@@ -23,7 +23,7 @@ app.include_router(support_tickets.router, prefix="/api/support-tickets", tags=[
 
 @app.get("/")
 async def root():
-    return {"status": "DermaScan AI backend running"}
+    return {"status": "DermOra AI backend running"}
 
 
 @app.get("/health")
