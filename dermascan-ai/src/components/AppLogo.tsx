@@ -12,7 +12,11 @@ export default function AppLogo({ size = 'md', showName = true, className = '' }
   return (
     <div className={`flex items-center gap-2 ${className}`}>
       <div className="relative">
-        <Activity className={`${s.icon} text-primary`} />
+        <img
+          src="../public/favicon.svg"
+          alt="DermOra Logo"
+          className={s.icon}
+        />
       </div>
       {showName && (
         <span className={`${s.text} font-heading font-medium tracking-tight`}>

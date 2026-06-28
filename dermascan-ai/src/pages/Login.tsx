@@ -38,7 +38,6 @@ export default function Login() {
 
   return (
     <AuthLayout
-      icon={Activity}
       title="Welcome back"
       subtitle="AI-assisted skin disease classification for medical professionals"
       footer={

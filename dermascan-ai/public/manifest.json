@@ -1,0 +1,38 @@
+{
+  "name": "DermOra AI",
+  "short_name": "DermOra",
+  "description": "AI-powered clinical decision support system for skin disease classification",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#ffffff",
+  "theme_color": "#0f172a",
+  "lang": "en",
+  "categories": ["medical", "health", "productivity"],
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "New Analysis",
+      "short_name": "Analysis",
+      "description": "Start a new skin analysis",
+      "url": "/new-analysis",
+      "icons": [{ "src": "/favicon.svg", "sizes": "any" }]
+    },
+    {
+      "name": "Patients",
+      "short_name": "Patients",
+      "description": "View your patients",
+      "url": "/patients",
+      "icons": [{ "src": "/favicon.svg", "sizes": "any" }]
+    }
+  ],
+  "prefer_related_applications": false
+}
