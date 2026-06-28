@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
+import { getFriendlyError } from "@/lib/authErrors";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -29,7 +30,7 @@ export default function Login() {
         setError("Your account is not properly configured. Please contact an administrator.");
       }
     } catch (err) {
-      setError(err.message || "Invalid email or password");
+      setError(getFriendlyError(err));
     } finally {
       setLoading(false);
     }

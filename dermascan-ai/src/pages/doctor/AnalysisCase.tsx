@@ -9,6 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { apiGet, apiPut } from '@/lib/apiClient';
 import { useToast } from '@/components/ui/use-toast';
 import DoctorTopbar from '@/components/doctor/DoctorTopbar';
+import { useAuth } from '@/lib/AuthContext';
 
 const getConfidenceColor = (conf: number) => {
   if (conf >= 0.6) return 'bg-destructive';
@@ -19,6 +20,7 @@ const getConfidenceColor = (conf: number) => {
 export default function AnalysisCase() {
   const { id } = useParams();
   const { toast } = useToast();
+  const { user, isLoadingAuth } = useAuth();
   const [analysis, setAnalysis] = useState<any>(null);
   const [patient, setPatient] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -27,7 +29,7 @@ export default function AnalysisCase() {
   const [savingNotes, setSavingNotes] = useState(false);
 
   useEffect(() => {
-    if (!id) return;
+    if (isLoadingAuth || !user || !id) return;
     setLoading(true);
     setError('');
     apiGet<any>(`/api/analysis/${id}`)
@@ -39,7 +41,7 @@ export default function AnalysisCase() {
       .then(patientData => setPatient(patientData))
       .catch(err => setError(err.message || 'Failed to load analysis.'))
       .finally(() => setLoading(false));
-  }, [id]);
+  }, [isLoadingAuth, user, id]);
 
   const handleSaveNotes = async () => {
     if (!id) return;
@@ -133,18 +135,22 @@ export default function AnalysisCase() {
           </CardContent>
         </Card>
 
-        {analysis.image_url && (
-          <Card className="border border-border rounded-xl">
-            <CardHeader><CardTitle className="text-base">Skin Image</CardTitle></CardHeader>
-            <CardContent>
+        <Card className="border border-border rounded-xl">
+          <CardHeader><CardTitle className="text-base">Skin Image</CardTitle></CardHeader>
+          <CardContent>
+            {analysis.image_base64 ? (
               <img
-                src={analysis.image_url}
-                alt="Case"
-                className="max-w-full max-h-80 rounded-xl border border-border object-contain bg-muted"
+                src={`data:${analysis.image_content_type || 'image/jpeg'};base64,${analysis.image_base64}`}
+                alt="Skin lesion"
+                className="w-full max-w-md rounded-xl border border-border object-contain bg-muted"
               />
-            </CardContent>
-          </Card>
-        )}
+            ) : (
+              <div className="flex items-center justify-center h-40 rounded-xl border border-dashed border-border bg-muted/40">
+                <p className="text-sm text-muted-foreground">Image not available</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         <Card className="border border-border rounded-xl">
           <CardHeader><CardTitle className="text-base">AI Predictions</CardTitle></CardHeader>

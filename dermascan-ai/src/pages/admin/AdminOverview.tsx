@@ -3,36 +3,30 @@ import { Link } from 'react-router-dom';
 import { Stethoscope, FileText, Clock, LifeBuoy } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { apiGet } from '@/lib/apiClient';
+import { useAuth } from '@/lib/AuthContext';
 
 export default function AdminOverview() {
+  const { user, isLoadingAuth } = useAuth();
   const [doctorsCount, setDoctorsCount] = useState(0);
   const [totalCases, setTotalCases] = useState(0);
   const [pendingCount, setPendingCount] = useState(0);
   const [openTicketsCount, setOpenTicketsCount] = useState(0);
 
   useEffect(() => {
+    if (isLoadingAuth || !user) return;
     apiGet<any[]>('/api/users/?role=doctor')
       .then(data => setDoctorsCount(data.length))
       .catch(() => setDoctorsCount(0));
-  }, []);
-
-  useEffect(() => {
     apiGet<any[]>('/api/analysis/')
       .then(data => setTotalCases(data.length))
       .catch(() => setTotalCases(0));
-  }, []);
-
-  useEffect(() => {
     apiGet<any[]>('/api/account-requests/')
       .then(data => setPendingCount(data.filter(r => r.status === 'pending').length))
       .catch(() => setPendingCount(0));
-  }, []);
-
-  useEffect(() => {
     apiGet<any[]>('/api/support-tickets/')
       .then(data => setOpenTicketsCount(data.filter(t => t.status === 'open').length))
       .catch(() => setOpenTicketsCount(0));
-  }, []);
+  }, [isLoadingAuth, user]);
 
   const stats = [
     { label: 'Active Doctors', value: doctorsCount, icon: Stethoscope, color: 'bg-primary/10 text-primary' },

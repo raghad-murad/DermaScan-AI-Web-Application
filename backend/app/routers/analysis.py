@@ -1,3 +1,4 @@
+import base64
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -20,16 +21,22 @@ async def create_analysis(
     image_bytes = await file.read()
     prediction = predict(image_bytes, image_type)
 
+    image_base64 = base64.b64encode(image_bytes).decode("utf-8")
+    image_content_type = file.content_type or "image/jpeg"
+
     data = {
         "patient_id": patient_id,
         "doctor_id": current_user["uid"],
         "image_type": image_type,
         "image_url": "",
+        "image_base64": image_base64,
+        "image_content_type": image_content_type,
         "top_predictions": prediction["top_predictions"],
         "created_at": datetime.now(timezone.utc).isoformat(),
         "status": "completed",
     }
     analysis_id = create_document("analyses", data)
+    print(f"Saved analysis doc fields: {list(data.keys())}")
     return get_document("analyses", analysis_id)
 
 

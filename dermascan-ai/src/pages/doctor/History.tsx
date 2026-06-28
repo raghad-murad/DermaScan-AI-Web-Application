@@ -10,8 +10,10 @@ import { apiGet } from '@/lib/apiClient';
 import { format } from 'date-fns';
 import DoctorTopbar from '@/components/doctor/DoctorTopbar';
 import { Link } from 'react-router-dom';
+import { useAuth } from '@/lib/AuthContext';
 
 export default function History() {
+  const { user, isLoadingAuth } = useAuth();
   const [analyses, setAnalyses] = useState<any[]>([]);
   const [patientNames, setPatientNames] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
@@ -20,6 +22,7 @@ export default function History() {
   const [imageTypeFilter, setImageTypeFilter] = useState('all');
 
   useEffect(() => {
+    if (isLoadingAuth || !user) return;
     setLoading(true);
     setError('');
     Promise.all([
@@ -34,7 +37,7 @@ export default function History() {
       })
       .catch(err => setError(err.message || 'Failed to load analysis history.'))
       .finally(() => setLoading(false));
-  }, []);
+  }, [isLoadingAuth, user]);
 
   const filtered = analyses.filter(a => {
     const patientName = patientNames[a.patient_id] || '';

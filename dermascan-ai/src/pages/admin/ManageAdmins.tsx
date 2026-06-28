@@ -15,7 +15,7 @@ import { format } from 'date-fns';
 const emptyForm = { full_name: '', email: '', username: '', password: '' };
 
 export default function ManageAdmins() {
-  const { user } = useAuth();
+  const { user, isLoadingAuth } = useAuth();
   const { toast } = useToast();
   const [admins, setAdmins] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -35,8 +35,9 @@ export default function ManageAdmins() {
   };
 
   useEffect(() => {
+    if (isLoadingAuth || !user) return;
     fetchAdmins();
-  }, []);
+  }, [isLoadingAuth, user]);
 
   const handleAddAdmin = async () => {
     setCreating(true);

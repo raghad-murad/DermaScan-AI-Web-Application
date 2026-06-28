@@ -12,11 +12,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { apiGet, apiPost, apiPostForm } from '@/lib/apiClient';
 import { useToast } from '@/components/ui/use-toast';
 import DoctorTopbar from '@/components/doctor/DoctorTopbar';
+import { useAuth } from '@/lib/AuthContext';
 
 const emptyPatientForm = { full_name: '', date_of_birth: '', gender: '', contact_number: '', notes: '' };
 
 export default function NewAnalysis() {
   const { toast } = useToast();
+  const { user, isLoadingAuth } = useAuth();
   const [searchParams] = useSearchParams();
   const preselectedPatientId = searchParams.get('patient');
 
@@ -47,12 +49,13 @@ export default function NewAnalysis() {
   };
 
   useEffect(() => {
+    if (isLoadingAuth || !user) return;
     fetchPatients().then(data => {
       if (preselectedPatientId && data.some((p: any) => p.id === preselectedPatientId)) {
         setSelectedPatientId(preselectedPatientId);
       }
     });
-  }, [preselectedPatientId]);
+  }, [isLoadingAuth, user, preselectedPatientId]);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

@@ -6,9 +6,11 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { apiGet, apiPut } from '@/lib/apiClient';
 import { useToast } from '@/components/ui/use-toast';
+import { useAuth } from '@/lib/AuthContext';
 
 export default function ManageDoctors() {
   const { toast } = useToast();
+  const { user, isLoadingAuth } = useAuth();
   const [doctors, setDoctors] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -24,8 +26,9 @@ export default function ManageDoctors() {
   };
 
   useEffect(() => {
+    if (isLoadingAuth || !user) return;
     fetchDoctors();
-  }, []);
+  }, [isLoadingAuth, user]);
 
   const handleDeactivate = async (doctor: any) => {
     setDeactivatingId(doctor.id);

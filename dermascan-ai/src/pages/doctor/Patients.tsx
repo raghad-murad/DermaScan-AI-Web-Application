@@ -13,11 +13,13 @@ import { apiGet, apiPost, apiPut, apiDelete } from '@/lib/apiClient';
 import { useToast } from '@/components/ui/use-toast';
 import { differenceInYears, parseISO } from 'date-fns';
 import DoctorTopbar from '@/components/doctor/DoctorTopbar';
+import { useAuth } from '@/lib/AuthContext';
 
 const emptyForm = { full_name: '', date_of_birth: '', gender: 'Male', contact_number: '', notes: '' };
 
 export default function Patients() {
   const { toast } = useToast();
+  const { user, isLoadingAuth } = useAuth();
   const [patients, setPatients] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -37,8 +39,9 @@ export default function Patients() {
   };
 
   useEffect(() => {
+    if (isLoadingAuth || !user) return;
     fetchPatients();
-  }, []);
+  }, [isLoadingAuth, user]);
 
   const filtered = patients.filter(p =>
     p.full_name?.toLowerCase().includes(search.toLowerCase()) || p.contact_number?.includes(search)

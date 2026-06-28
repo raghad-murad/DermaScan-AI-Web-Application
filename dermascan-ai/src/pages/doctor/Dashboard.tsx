@@ -7,8 +7,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { apiGet } from '@/lib/apiClient';
 import { format } from 'date-fns';
 import DoctorTopbar from '@/components/doctor/DoctorTopbar';
+import { useAuth } from '@/lib/AuthContext';
 
 export default function Dashboard() {
+  const { user, isLoadingAuth } = useAuth();
   const [patients, setPatients] = useState<any[]>([]);
   const [analyses, setAnalyses] = useState<any[]>([]);
   const [patientNames, setPatientNames] = useState<Record<string, string>>({});
@@ -16,6 +18,7 @@ export default function Dashboard() {
   const [error, setError] = useState('');
 
   useEffect(() => {
+    if (isLoadingAuth || !user) return;
     setLoading(true);
     setError('');
     Promise.all([
@@ -31,7 +34,7 @@ export default function Dashboard() {
       })
       .catch(err => setError(err.message || 'Failed to load dashboard data.'))
       .finally(() => setLoading(false));
-  }, []);
+  }, [isLoadingAuth, user]);
 
   const recentCases = [...analyses]
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())

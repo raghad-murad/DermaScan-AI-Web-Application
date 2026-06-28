@@ -37,6 +37,8 @@ class Analysis(BaseModel):
     doctor_id: str
     image_type: str  # "clinical" or "dermoscopic"
     image_url: str
+    image_base64: Optional[str] = None
+    image_content_type: Optional[str] = None
     top_predictions: list[Prediction]
     created_at: datetime
     status: str

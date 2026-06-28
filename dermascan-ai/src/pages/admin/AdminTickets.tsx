@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Eye, CheckCircle2, Mail, Trash2 } from 'lucide-react';
+import { Eye, CheckCircle2, Mail, Trash2, Check, X } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -10,18 +10,18 @@ import { Textarea } from '@/components/ui/textarea';
 import { apiGet, apiPut, apiDelete } from '@/lib/apiClient';
 import { useToast } from '@/components/ui/use-toast';
 import { format } from 'date-fns';
+import { useAuth } from '@/lib/AuthContext';
 
 const statusColors: Record<string, string> = {
   open: 'bg-yellow-500/10 text-yellow-600',
   pending: 'bg-yellow-500/10 text-yellow-600',
   resolved: 'bg-secondary/10 text-secondary',
+  rejected: 'bg-destructive/10 text-destructive',
 };
 
 const EMAIL_CHANGE_SUBJECT = 'Email Change Request';
 const DELETION_REQUEST_TYPE = 'deletion_request';
 
-// Parses the structured sentence Support.tsx generates for email-change tickets:
-// "Doctor requests email change from {current} to {new}. Reason: {reason}"
 const parseEmailChangeRequest = (message: string): { currentEmail: string; newEmail: string } | null => {
   const match = message?.match(/from (.+?) to (.+?)\.\s*Reason:/);
   if (!match) return null;
@@ -30,16 +30,26 @@ const parseEmailChangeRequest = (message: string): { currentEmail: string; newEm
 
 export default function AdminTickets() {
   const { toast } = useToast();
+  const { user, isLoadingAuth } = useAuth();
   const [tickets, setTickets] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [tab, setTab] = useState('all');
   const [viewTicket, setViewTicket] = useState<any>(null);
+
+  // General resolve dialog (non-email-change tickets)
   const [replyDialog, setReplyDialog] = useState<any>(null);
   const [reply, setReply] = useState('');
   const [resolving, setResolving] = useState(false);
-  const [updateEmailDialog, setUpdateEmailDialog] = useState<any>(null);
-  const [updatingEmail, setUpdatingEmail] = useState(false);
+
+  // Email change approve/reject
+  const [approveEmailTicket, setApproveEmailTicket] = useState<any>(null);
+  const [approvingEmail, setApprovingEmail] = useState(false);
+  const [rejectEmailDialog, setRejectEmailDialog] = useState<any>(null);
+  const [emailRejectReason, setEmailRejectReason] = useState('');
+  const [rejectingEmail, setRejectingEmail] = useState(false);
+
+  // Account deletion
   const [deletionDialog, setDeletionDialog] = useState<any>(null);
   const [deletingAccount, setDeletingAccount] = useState(false);
 
@@ -53,8 +63,9 @@ export default function AdminTickets() {
   };
 
   useEffect(() => {
+    if (isLoadingAuth || !user) return;
     fetchTickets();
-  }, []);
+  }, [isLoadingAuth, user]);
 
   const filtered = tab === 'all' ? tickets : tickets.filter(t => t.status === tab);
 
@@ -76,23 +87,35 @@ export default function AdminTickets() {
     }
   };
 
-  const handleUpdateEmail = async () => {
-    const parsed = parseEmailChangeRequest(updateEmailDialog.message);
-    if (!parsed) return;
-    setUpdatingEmail(true);
+  const handleApproveEmail = async () => {
+    setApprovingEmail(true);
     try {
-      await apiPut(`/api/users/${updateEmailDialog.doctor_id}/email`, { new_email: parsed.newEmail });
-      await apiPut(`/api/support-tickets/${updateEmailDialog.id}`, {
-        status: 'resolved',
-        admin_reply: `Email updated to ${parsed.newEmail}.`,
+      await apiPut(`/api/support-tickets/resolve/${approveEmailTicket.id}`, { action: 'approve' });
+      await fetchTickets();
+      toast({ title: 'Email change approved', description: "Doctor's email has been updated." });
+      setApproveEmailTicket(null);
+    } catch (err: any) {
+      toast({ title: 'Approval failed', description: err.message || 'Could not approve the email change.', variant: 'destructive' });
+    } finally {
+      setApprovingEmail(false);
+    }
+  };
+
+  const handleRejectEmail = async () => {
+    setRejectingEmail(true);
+    try {
+      await apiPut(`/api/support-tickets/resolve/${rejectEmailDialog.id}`, {
+        action: 'reject',
+        admin_message: emailRejectReason,
       });
       await fetchTickets();
-      toast({ title: 'Email updated', description: `Doctor's email was changed to ${parsed.newEmail}.` });
-      setUpdateEmailDialog(null);
+      toast({ title: 'Email change rejected', description: 'The doctor has been notified.' });
+      setRejectEmailDialog(null);
+      setEmailRejectReason('');
     } catch (err: any) {
-      toast({ title: 'Update failed', description: err.message || 'Could not update the email address.', variant: 'destructive' });
+      toast({ title: 'Rejection failed', description: err.message || 'Could not reject the email change.', variant: 'destructive' });
     } finally {
-      setUpdatingEmail(false);
+      setRejectingEmail(false);
     }
   };
 
@@ -119,6 +142,7 @@ export default function AdminTickets() {
           <TabsTrigger value="all">All</TabsTrigger>
           <TabsTrigger value="open">Open</TabsTrigger>
           <TabsTrigger value="resolved">Resolved</TabsTrigger>
+          <TabsTrigger value="rejected">Rejected</TabsTrigger>
         </TabsList>
       </Tabs>
 
@@ -145,6 +169,7 @@ export default function AdminTickets() {
               ) : filtered.map(t => {
                 const isEmailChange = t.subject === EMAIL_CHANGE_SUBJECT;
                 const isDeletionRequest = t.type === DELETION_REQUEST_TYPE;
+                const isOpen = t.status !== 'resolved' && t.status !== 'rejected';
                 return (
                   <TableRow key={t.id}>
                     <TableCell className="font-medium">{t.doctor_id || '-'}</TableCell>
@@ -171,17 +196,22 @@ export default function AdminTickets() {
                         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setViewTicket(t)}>
                           <Eye className="h-3.5 w-3.5" />
                         </Button>
-                        {t.status !== 'resolved' && isDeletionRequest && (
+                        {isOpen && isDeletionRequest && (
                           <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeletionDialog(t)}>
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>
                         )}
-                        {t.status !== 'resolved' && isEmailChange && (
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-primary" onClick={() => setUpdateEmailDialog(t)}>
-                            <Mail className="h-3.5 w-3.5" />
-                          </Button>
+                        {isOpen && isEmailChange && (
+                          <>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-secondary" onClick={() => setApproveEmailTicket(t)}>
+                              <Check className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => { setRejectEmailDialog(t); setEmailRejectReason(''); }}>
+                              <X className="h-3.5 w-3.5" />
+                            </Button>
+                          </>
                         )}
-                        {t.status !== 'resolved' && !isDeletionRequest && (
+                        {isOpen && !isDeletionRequest && !isEmailChange && (
                           <Button variant="ghost" size="icon" className="h-8 w-8 text-secondary" onClick={() => { setReplyDialog(t); setReply(''); }}>
                             <CheckCircle2 className="h-3.5 w-3.5" />
                           </Button>
@@ -217,7 +247,7 @@ export default function AdminTickets() {
         </DialogContent>
       </Dialog>
 
-      {/* Resolve Dialog */}
+      {/* General Resolve Dialog */}
       <Dialog open={!!replyDialog} onOpenChange={() => setReplyDialog(null)}>
         <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Resolve Ticket</DialogTitle></DialogHeader>
@@ -234,15 +264,17 @@ export default function AdminTickets() {
         </DialogContent>
       </Dialog>
 
-      {/* Update Email Confirmation Dialog */}
-      <Dialog open={!!updateEmailDialog} onOpenChange={() => setUpdateEmailDialog(null)}>
+      {/* Approve Email Change Dialog */}
+      <Dialog open={!!approveEmailTicket} onOpenChange={() => setApproveEmailTicket(null)}>
         <DialogContent className="max-h-[90vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>Update Doctor's Email</DialogTitle></DialogHeader>
-          {updateEmailDialog && (() => {
-            const parsed = parseEmailChangeRequest(updateEmailDialog.message);
+          <DialogHeader><DialogTitle>Approve Email Change</DialogTitle></DialogHeader>
+          {approveEmailTicket && (() => {
+            const parsed = parseEmailChangeRequest(approveEmailTicket.message);
             return parsed ? (
               <div className="space-y-4">
-                <p className="text-sm text-muted-foreground">This will update the doctor's Firebase Auth and Firestore email address.</p>
+                <p className="text-sm text-muted-foreground">
+                  This will update the doctor's Firebase Auth and Firestore email address.
+                </p>
                 <div><p className="text-xs text-muted-foreground">Current Email</p><p className="text-sm font-medium">{parsed.currentEmail}</p></div>
                 <div><p className="text-xs text-muted-foreground">New Email</p><p className="text-sm font-medium">{parsed.newEmail}</p></div>
               </div>
@@ -251,19 +283,43 @@ export default function AdminTickets() {
             );
           })()}
           <DialogFooter>
-            <Button variant="outline" className="rounded-lg" onClick={() => setUpdateEmailDialog(null)}>Cancel</Button>
+            <Button variant="outline" className="rounded-lg" onClick={() => setApproveEmailTicket(null)}>Cancel</Button>
             <Button
               className="rounded-lg gap-1.5"
-              onClick={handleUpdateEmail}
-              disabled={updatingEmail || !parseEmailChangeRequest(updateEmailDialog?.message)}
+              onClick={handleApproveEmail}
+              disabled={approvingEmail || !parseEmailChangeRequest(approveEmailTicket?.message)}
             >
-              <Mail className="h-3.5 w-3.5" /> {updatingEmail ? 'Updating...' : 'Confirm Update'}
+              <Check className="h-3.5 w-3.5" /> {approvingEmail ? 'Approving...' : 'Confirm Approval'}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Approve Deletion Confirmation Dialog */}
+      {/* Reject Email Change Dialog */}
+      <Dialog open={!!rejectEmailDialog} onOpenChange={() => { setRejectEmailDialog(null); setEmailRejectReason(''); }}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Reject Email Change</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Optionally provide a reason. The doctor will be notified by email.
+            </p>
+            <Textarea
+              placeholder="Reason for rejection (optional)..."
+              value={emailRejectReason}
+              onChange={e => setEmailRejectReason(e.target.value)}
+              rows={3}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" className="rounded-lg" onClick={() => { setRejectEmailDialog(null); setEmailRejectReason(''); }}>Cancel</Button>
+            <Button variant="destructive" className="rounded-lg gap-1.5" onClick={handleRejectEmail} disabled={rejectingEmail}>
+              <X className="h-3.5 w-3.5" /> {rejectingEmail ? 'Rejecting...' : 'Reject'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Approve Account Deletion Dialog */}
       <Dialog open={!!deletionDialog} onOpenChange={() => setDeletionDialog(null)}>
         <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Approve Account Deletion</DialogTitle></DialogHeader>

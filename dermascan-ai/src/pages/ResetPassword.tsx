@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Lock, Loader2, AlertTriangle } from "lucide-react";
 import AuthLayout from "@/components/AuthLayout";
+import { getFriendlyError } from "@/lib/authErrors";
 
 export default function ResetPassword() {
   const [searchParams] = useSearchParams();
@@ -30,7 +31,7 @@ export default function ResetPassword() {
       await confirmPasswordReset(auth, resetToken, newPassword);
       window.location.href = "/login";
     } catch (err) {
-      setError(err.message || "Failed to reset password");
+      setError(getFriendlyError(err));
     } finally {
       setLoading(false);
     }

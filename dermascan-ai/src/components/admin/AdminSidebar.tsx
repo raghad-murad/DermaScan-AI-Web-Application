@@ -22,15 +22,16 @@ interface AdminSidebarProps {
 
 export default function AdminSidebar({ open, onClose }: AdminSidebarProps) {
   const location = useLocation();
-  const { user, logout } = useAuth();
+  const { user, isLoadingAuth, logout } = useAuth();
 
   const [pendingCount, setPendingCount] = useState(0);
 
   useEffect(() => {
+    if (isLoadingAuth || !user) return;
     apiGet<any[]>('/api/account-requests/')
       .then(data => setPendingCount(data.filter(r => r.status === 'pending').length))
       .catch(() => setPendingCount(0));
-  }, []);
+  }, [isLoadingAuth, user]);
 
   return (
     <>

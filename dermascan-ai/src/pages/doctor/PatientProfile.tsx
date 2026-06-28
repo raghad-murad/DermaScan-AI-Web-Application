@@ -14,10 +14,12 @@ import { apiGet, apiPut } from '@/lib/apiClient';
 import { useToast } from '@/components/ui/use-toast';
 import { format } from 'date-fns';
 import DoctorTopbar from '@/components/doctor/DoctorTopbar';
+import { useAuth } from '@/lib/AuthContext';
 
 export default function PatientProfile() {
   const { id } = useParams();
   const { toast } = useToast();
+  const { user, isLoadingAuth } = useAuth();
 
   const [patient, setPatient] = useState<any>(null);
   const [analyses, setAnalyses] = useState<any[]>([]);
@@ -45,9 +47,10 @@ export default function PatientProfile() {
   };
 
   useEffect(() => {
+    if (isLoadingAuth || !user) return;
     fetchData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id]);
+  }, [isLoadingAuth, user, id]);
 
   const openEdit = () => {
     if (!patient) return;

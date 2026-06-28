@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label';
 import { apiGet, apiPut, apiPost } from '@/lib/apiClient';
 import { useToast } from '@/components/ui/use-toast';
 import { format } from 'date-fns';
+import { useAuth } from '@/lib/AuthContext';
 
 const statusColors: Record<string, string> = {
   pending: 'bg-yellow-500/10 text-yellow-600',
@@ -23,6 +24,7 @@ const emptyDoctorForm = { full_name: '', email: '', specialty: '', hospital: '',
 
 export default function AccountRequests() {
   const { toast } = useToast();
+  const { user, isLoadingAuth } = useAuth();
   const [requests, setRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -71,8 +73,9 @@ export default function AccountRequests() {
   };
 
   useEffect(() => {
+    if (isLoadingAuth || !user) return;
     fetchRequests();
-  }, []);
+  }, [isLoadingAuth, user]);
 
   const filtered = tab === 'all' ? requests : requests.filter(r => r.status === tab);
 

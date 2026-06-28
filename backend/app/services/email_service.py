@@ -68,3 +68,33 @@ If you believe this is an error or would like to reapply, please contact our sup
 Best regards,
 DermOra AI Team"""
     send_email(to_email, subject, body)
+
+
+def send_email_change_approved_email(to_email: str, full_name: str, new_email: str) -> None:
+    subject = "Your Email Change Request Has Been Approved"
+    body = f"""Dear Dr. {full_name},
+
+Your request to change your email address has been approved.
+
+Your new login email is: {new_email}
+
+Please use this email address the next time you sign in to DermOra AI.
+
+Best regards,
+DermOra AI Team"""
+    send_email(to_email, subject, body)
+
+
+def send_email_change_rejected_email(to_email: str, full_name: str, reason: str) -> None:
+    subject = "Your Email Change Request Has Been Declined"
+    body = f"""Dear Dr. {full_name},
+
+We were unable to process your email change request at this time.
+
+{f"Reason: {reason}" if reason else "Please contact support if you need further assistance."}
+
+If you believe this is an error, please reach out to our support team.
+
+Best regards,
+DermOra AI Team"""
+    send_email(to_email, subject, body)

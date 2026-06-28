@@ -4,3 +4,5 @@ __pycache__/
 *.pyc
 *.pyo
 .DS_Store
+app/models/clinical/
+app/models/dermoscopy/

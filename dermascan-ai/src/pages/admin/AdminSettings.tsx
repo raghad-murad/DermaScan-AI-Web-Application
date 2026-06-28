@@ -6,10 +6,12 @@ import { Label } from '@/components/ui/label';
 import { apiGet, apiPut } from '@/lib/apiClient';
 import { useToast } from '@/components/ui/use-toast';
 import { auth } from '@/lib/firebase';
+import { useAuth } from '@/lib/AuthContext';
 import { EmailAuthProvider, reauthenticateWithCredential, updatePassword } from 'firebase/auth';
 
 export default function AdminSettings() {
   const { toast } = useToast();
+  const { user, isLoadingAuth } = useAuth();
 
   const [form, setForm] = useState({
     full_name: '',
@@ -32,6 +34,7 @@ export default function AdminSettings() {
   const [passwordSuccess, setPasswordSuccess] = useState('');
 
   useEffect(() => {
+    if (isLoadingAuth || !user) return;
     let cancelled = false;
     setLoading(true);
     setLoadError('');
@@ -53,7 +56,7 @@ export default function AdminSettings() {
         if (!cancelled) setLoading(false);
       });
     return () => { cancelled = true; };
-  }, []);
+  }, [isLoadingAuth, user]);
 
   const handleSaveProfile = async () => {
     setSaving(true);
