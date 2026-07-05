@@ -1,0 +1,44 @@
+diff --git a/backend/app/config.py b/backend/app/config.py
+index 671942d..49cdcc3 100644
+--- a/backend/app/config.py
++++ b/backend/app/config.py
+@@ -5,7 +5,7 @@ load_dotenv()
+ 
+ 
+ class Settings(BaseSettings):
+-    FIREBASE_SERVICE_ACCOUNT_PATH: str
++    FIREBASE_SERVICE_ACCOUNT_PATH: str = ""
+     FRONTEND_URL: str = "http://localhost:5173"
+ 
+     SMTP_HOST: str = "smtp.gmail.com"
+diff --git a/backend/app/firebase_admin.py b/backend/app/firebase_admin.py
+index aa3b4eb..564b3e7 100644
+--- a/backend/app/firebase_admin.py
++++ b/backend/app/firebase_admin.py
+@@ -1,10 +1,23 @@
++import json
++import os
+ import firebase_admin
+ from firebase_admin import auth, credentials, firestore
+ 
+-from app.config import settings
+ 
+-if not firebase_admin._apps:
+-    cred = credentials.Certificate(settings.FIREBASE_SERVICE_ACCOUNT_PATH)
++def _initialize():
++    if firebase_admin._apps:
++        return
++
++    service_account_json = os.environ.get("FIREBASE_SERVICE_ACCOUNT_JSON")
++    if service_account_json:
++        cred = credentials.Certificate(json.loads(service_account_json))
++    else:
++        from app.config import settings
++        cred = credentials.Certificate(settings.FIREBASE_SERVICE_ACCOUNT_PATH)
++
+     firebase_admin.initialize_app(cred)
+ 
++
++_initialize()
++
+ db = firestore.client()
