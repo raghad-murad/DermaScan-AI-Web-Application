@@ -14,6 +14,9 @@ class Settings(BaseSettings):
     SMTP_PASSWORD: str = ""
     EMAIL_FROM: str = "noreply@dermascan.ai"
 
+    HF_TOKEN: str = ""
+    HF_REPO_ID: str = "raghad-murad/dermoraai-models"
+
     class Config:
         env_file = ".env"
 

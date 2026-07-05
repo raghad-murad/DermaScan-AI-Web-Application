@@ -2,8 +2,28 @@ import json, torch, torch.nn as nn, io
 from torchvision import models, transforms
 from PIL import Image
 from pathlib import Path
+from huggingface_hub import hf_hub_download
+from app.config import settings
 
 MODELS_DIR = Path(__file__).parent
+CACHE_DIR  = MODELS_DIR / "cache"
+
+
+def download_model_file(filename: str) -> Path:
+    local_path = CACHE_DIR / filename
+    if local_path.exists():
+        print(f"[ML] Using cached: {filename}")
+        return local_path
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    print(f"[ML] Downloading from HuggingFace: {filename}")
+    downloaded = hf_hub_download(
+        repo_id=settings.HF_REPO_ID,
+        filename=filename,
+        token=settings.HF_TOKEN,
+        local_dir=str(CACHE_DIR),
+    )
+    return Path(downloaded)
+
 
 class SkinPredictor:
     CLINICAL_DISPLAY_NAMES = {
@@ -86,24 +106,25 @@ class SkinPredictor:
 
     def __init__(
         self,
-        model_dir: Path,
+        prefix: str,
         display_names: dict[str, str] | None = None,
         icd10_map: dict[str, str] | None = None,
     ):
         self.display_names = display_names or {}
         self.icd10_map = icd10_map or {}
-        with open(model_dir / "model_config.json") as f:
+
+        config_path  = download_model_file(f"{prefix}_model_config.json")
+        classes_path = download_model_file(f"{prefix}_classes.json")
+        weights_path = download_model_file(f"{prefix}_resnet101.pth")
+
+        with open(config_path) as f:
             self.config = json.load(f)
-        with open(model_dir / "classes.json") as f:
+        with open(classes_path) as f:
             raw = json.load(f)
             self.idx_to_class = {int(k): v for k, v in raw.items()}
 
         num_classes = self.config["num_classes"]
-        dropout_p   = self.config.get("dropout_p", 0.5)
-
-        pth_files = list(model_dir.glob("*.pth"))
-        if not pth_files:
-            raise FileNotFoundError(f"No .pth file found in {model_dir}")
+        dropout_p   = self.config.get("dropout_p", 0.3)
 
         base = models.resnet101(weights=None)
         base.fc = nn.Sequential(
@@ -112,7 +133,7 @@ class SkinPredictor:
         )
         self.model = base
         self.model.load_state_dict(
-            torch.load(pth_files[0], map_location="cpu")
+            torch.load(weights_path, map_location="cpu")
         )
         self.model.eval()
 
@@ -124,7 +145,7 @@ class SkinPredictor:
                 std=self.config["std"]
             ),
         ])
-        print(f"[ML] Loaded {model_dir.name} — {num_classes} classes")
+        print(f"[ML] Loaded {prefix} model — {num_classes} classes")
 
     def predict(self, image_bytes: bytes, top_k: int = 3):
         image  = Image.open(io.BytesIO(image_bytes)).convert("RGB")
@@ -134,39 +155,42 @@ class SkinPredictor:
         top_probs, top_indices = torch.topk(probs, top_k)
         results = []
         for prob, idx in zip(top_probs, top_indices):
-            raw_name = self.idx_to_class[idx.item()]
+            raw_name     = self.idx_to_class[idx.item()]
             display_name = self.display_names.get(raw_name, raw_name)
-            print(f"[DEBUG] raw: {raw_name!r} → display: {display_name!r}")
-            icd10 = self.icd10_map.get(display_name, "N/A") if self.icd10_map else "N/A"
+            icd10        = self.icd10_map.get(display_name, "N/A") if self.icd10_map else "N/A"
             results.append({
                 "condition" : display_name,
                 "confidence": round(prob.item(), 4),
-                "icd10"     : icd10
+                "icd10"     : icd10,
             })
         return results
 
+
 _clinical   = None
 _dermoscopy = None
+
 
 def get_clinical_predictor() -> SkinPredictor:
     global _clinical
     if _clinical is None:
         _clinical = SkinPredictor(
-            MODELS_DIR / "clinical",
+            "clinical",
             SkinPredictor.CLINICAL_DISPLAY_NAMES,
             SkinPredictor.CLINICAL_ICD10,
         )
     return _clinical
 
+
 def get_dermoscopy_predictor() -> SkinPredictor:
     global _dermoscopy
     if _dermoscopy is None:
         _dermoscopy = SkinPredictor(
-            MODELS_DIR / "dermoscopy",
+            "dermoscopy",
             SkinPredictor.DERMOSCOPY_DISPLAY_NAMES,
             SkinPredictor.DERMOSCOPY_ICD10,
         )
     return _dermoscopy
+
 
 def predict(image_bytes: bytes, image_type: str, top_k: int = 3):
     if image_type == "dermoscopic":
@@ -179,5 +203,5 @@ def predict(image_bytes: bytes, image_type: str, top_k: int = 3):
     return {
         "top_predictions": predictor.predict(image_bytes, top_k),
         "model_used"     : model_name,
-        "image_type"     : image_type
+        "image_type"     : image_type,
     }
