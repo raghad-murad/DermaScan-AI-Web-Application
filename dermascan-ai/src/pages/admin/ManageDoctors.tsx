@@ -1,10 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { UserX, Info } from 'lucide-react';
+import { Trash2, Info } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { apiGet, apiPut } from '@/lib/apiClient';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { apiGet, apiDelete } from '@/lib/apiClient';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/lib/AuthContext';
 
@@ -14,7 +24,8 @@ export default function ManageDoctors() {
   const [doctors, setDoctors] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [deactivatingId, setDeactivatingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [confirmDoctor, setConfirmDoctor] = useState<any | null>(null);
 
   const fetchDoctors = () => {
     setLoading(true);
@@ -30,16 +41,17 @@ export default function ManageDoctors() {
     fetchDoctors();
   }, [isLoadingAuth, user]);
 
-  const handleDeactivate = async (doctor: any) => {
-    setDeactivatingId(doctor.id);
+  const handleDelete = async (doctor: any) => {
+    setDeletingId(doctor.id);
     try {
-      await apiPut(`/api/users/${doctor.id}/deactivate`);
+      await apiDelete(`/api/users/${doctor.id}`);
       await fetchDoctors();
-      toast({ title: 'Doctor deactivated', description: `${doctor.full_name} can no longer sign in.` });
+      toast({ title: 'Doctor deleted', description: `${doctor.full_name}'s account and all associated data were deleted.` });
     } catch (err: any) {
-      toast({ title: 'Deactivation failed', description: err.message || 'Could not deactivate doctor.', variant: 'destructive' });
+      toast({ title: 'Deletion failed', description: err.message || 'Could not delete doctor.', variant: 'destructive' });
     } finally {
-      setDeactivatingId(null);
+      setDeletingId(null);
+      setConfirmDoctor(null);
     }
   };
 
@@ -92,10 +104,10 @@ export default function ManageDoctors() {
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8 text-destructive"
-                        disabled={!isActive || deactivatingId === d.id}
-                        onClick={() => handleDeactivate(d)}
+                        disabled={deletingId === d.id}
+                        onClick={() => setConfirmDoctor(d)}
                       >
-                        <UserX className="h-3.5 w-3.5" />
+                        <Trash2 className="h-3.5 w-3.5" />
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -105,6 +117,27 @@ export default function ManageDoctors() {
           </Table>
         </CardContent>
       </Card>
+
+      <AlertDialog open={!!confirmDoctor} onOpenChange={open => !open && setConfirmDoctor(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete doctor account?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the doctor's account and all associated data. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deletingId === confirmDoctor?.id}
+              onClick={() => confirmDoctor && handleDelete(confirmDoctor)}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

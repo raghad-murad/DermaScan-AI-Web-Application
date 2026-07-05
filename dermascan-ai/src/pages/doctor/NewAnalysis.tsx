@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Upload, Zap, UserPlus } from 'lucide-react';
+import { Upload, Zap, UserPlus, Save } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { apiGet, apiPost, apiPostForm } from '@/lib/apiClient';
+import { apiGet, apiPost, apiPostForm, apiPut } from '@/lib/apiClient';
 import { useToast } from '@/components/ui/use-toast';
 import DoctorTopbar from '@/components/doctor/DoctorTopbar';
 import { useAuth } from '@/lib/AuthContext';
@@ -32,6 +32,9 @@ export default function NewAnalysis() {
   const [analyzing, setAnalyzing] = useState(false);
   const [analyzeError, setAnalyzeError] = useState('');
   const [results, setResults] = useState<any>(null);
+
+  const [caseNotes, setCaseNotes] = useState('');
+  const [savingNotes, setSavingNotes] = useState(false);
 
   const [showNewPatient, setShowNewPatient] = useState(false);
   const [patientForm, setPatientForm] = useState(emptyPatientForm);
@@ -65,11 +68,25 @@ export default function NewAnalysis() {
     }
   };
 
+  const handleSaveNotes = async () => {
+    if (!results?.id) return;
+    setSavingNotes(true);
+    try {
+      await apiPut(`/api/analysis/${results.id}`, { notes: caseNotes });
+      toast({ title: 'Notes saved successfully' });
+    } catch (err: any) {
+      toast({ title: 'Save failed', description: err.message || 'Could not save notes.', variant: 'destructive' });
+    } finally {
+      setSavingNotes(false);
+    }
+  };
+
   const handleAnalyze = async () => {
     if (!selectedPatientId || !imageFile) return;
     setAnalyzing(true);
     setAnalyzeError('');
     setResults(null);
+    setCaseNotes('');
     try {
       const formData = new FormData();
       formData.append('patient_id', selectedPatientId);
@@ -258,6 +275,29 @@ export default function NewAnalysis() {
                     </div>
                   </div>
                 ))}
+              </CardContent>
+            </Card>
+
+            <Card className="border border-border rounded-xl">
+              <CardHeader>
+                <CardTitle className="text-lg">Clinical Notes</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <Textarea
+                  placeholder="Add your clinical observations..."
+                  rows={4}
+                  value={caseNotes}
+                  onChange={e => setCaseNotes(e.target.value)}
+                />
+                <Button
+                  size="sm"
+                  className="rounded-lg gap-2"
+                  onClick={handleSaveNotes}
+                  disabled={savingNotes}
+                >
+                  <Save className="h-3.5 w-3.5" />
+                  {savingNotes ? 'Saving...' : 'Save Notes'}
+                </Button>
               </CardContent>
             </Card>
 

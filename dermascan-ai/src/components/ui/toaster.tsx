@@ -22,7 +22,7 @@ export function Toaster() {
 
   return (
     <ToastProvider>
-      {toasts.map(function ({ id, title, description, action, ...props }) {
+      {toasts.map(function ({ id, title, description, action, open: _open, onOpenChange: _onOpenChange, ...props }) {
         return (
           <Toast key={id} {...props}>
             <ToastAutoDismiss id={id} dismiss={dismiss} />

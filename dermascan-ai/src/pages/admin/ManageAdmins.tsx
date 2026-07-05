@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Shield, Eye, EyeOff } from 'lucide-react';
+import { Plus, Shield, Eye, EyeOff, Trash2 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,7 +7,17 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { apiGet, apiPost } from '@/lib/apiClient';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { apiGet, apiPost, apiDelete } from '@/lib/apiClient';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/lib/AuthContext';
 import { format } from 'date-fns';
@@ -24,6 +34,8 @@ export default function ManageAdmins() {
   const [showPassword, setShowPassword] = useState(false);
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState(emptyForm);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [confirmAdmin, setConfirmAdmin] = useState<any | null>(null);
 
   const fetchAdmins = () => {
     setLoading(true);
@@ -38,6 +50,20 @@ export default function ManageAdmins() {
     if (isLoadingAuth || !user) return;
     fetchAdmins();
   }, [isLoadingAuth, user]);
+
+  const handleDeleteAdmin = async (admin: any) => {
+    setDeletingId(admin.id);
+    try {
+      await apiDelete(`/api/users/${admin.id}`);
+      await fetchAdmins();
+      toast({ title: 'Admin deleted', description: `${admin.full_name}'s account and all associated data were deleted.` });
+    } catch (err: any) {
+      toast({ title: 'Deletion failed', description: err.message || 'Could not delete admin.', variant: 'destructive' });
+    } finally {
+      setDeletingId(null);
+      setConfirmAdmin(null);
+    }
+  };
 
   const handleAddAdmin = async () => {
     setCreating(true);
@@ -80,15 +106,16 @@ export default function ManageAdmins() {
                 <TableHead>Email</TableHead>
                 <TableHead>Role</TableHead>
                 <TableHead>Joined</TableHead>
+                <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
-                <TableRow><TableCell colSpan={4} className="text-center py-12 text-muted-foreground">Loading admins...</TableCell></TableRow>
+                <TableRow><TableCell colSpan={5} className="text-center py-12 text-muted-foreground">Loading admins...</TableCell></TableRow>
               ) : error ? (
-                <TableRow><TableCell colSpan={4} className="text-center py-12 text-destructive">{error}</TableCell></TableRow>
+                <TableRow><TableCell colSpan={5} className="text-center py-12 text-destructive">{error}</TableCell></TableRow>
               ) : admins.length === 0 ? (
-                <TableRow><TableCell colSpan={4} className="text-center py-12 text-muted-foreground">No admins found</TableCell></TableRow>
+                <TableRow><TableCell colSpan={5} className="text-center py-12 text-muted-foreground">No admins found</TableCell></TableRow>
               ) : admins.map(a => (
                 <TableRow key={a.id}>
                   <TableCell className="font-medium">
@@ -101,6 +128,17 @@ export default function ManageAdmins() {
                   <TableCell>{a.email}</TableCell>
                   <TableCell><Badge variant="secondary" className="bg-primary/10 text-primary">Admin</Badge></TableCell>
                   <TableCell>{a.created_at ? format(new Date(a.created_at), 'dd MMM yyyy') : '-'}</TableCell>
+                  <TableCell>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-destructive"
+                      disabled={a.id === user?.id || deletingId === a.id}
+                      onClick={() => setConfirmAdmin(a)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -162,6 +200,27 @@ export default function ManageAdmins() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!confirmAdmin} onOpenChange={open => !open && setConfirmAdmin(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete admin account?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the admin's account and all associated data. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deletingId === confirmAdmin?.id}
+              onClick={() => confirmAdmin && handleDeleteAdmin(confirmAdmin)}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
