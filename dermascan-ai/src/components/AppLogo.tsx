@@ -13,7 +13,7 @@ export default function AppLogo({ size = 'md', showName = true, className = '' }
     <div className={`flex items-center gap-2 ${className}`}>
       <div className="relative">
         <img
-          src="../public/favicon.svg"
+          src="/favicon.svg"
           alt="DermOra Logo"
           className={s.icon}
         />
