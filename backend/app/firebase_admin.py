@@ -19,9 +19,9 @@ def _initialize():
             raise ValueError(f"Invalid FIREBASE_SERVICE_ACCOUNT_JSON: {e}")
     else:
         from app.config import settings
-        if not settings.FIREBASE_SERVICE_ACCOUNT_PATH:
+        if not settings.FIREBASE_SERVICE_ACCOUNT_JSON:
             raise ValueError("No Firebase credentials found. Set FIREBASE_SERVICE_ACCOUNT_JSON or FIREBASE_SERVICE_ACCOUNT_PATH")
-        cred = credentials.Certificate(settings.FIREBASE_SERVICE_ACCOUNT_PATH)
+        cred = credentials.Certificate(settings.FIREBASE_SERVICE_ACCOUNT_JSON)
         print("[Firebase] Initialized from file path")
 
     firebase_admin.initialize_app(cred)
