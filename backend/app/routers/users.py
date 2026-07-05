@@ -109,6 +109,9 @@ async def update_user_email(user_id: str, payload: dict, current_user: dict = De
 @router.delete("/{user_id}")
 async def delete_user_account(user_id: str, current_user: dict = Depends(get_current_user)):
     _require_admin(current_user)
+    if user_id == current_user["uid"]:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="You cannot delete your own account")
+
     user = get_document("users", user_id)
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")

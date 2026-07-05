@@ -6,7 +6,92 @@ from pathlib import Path
 MODELS_DIR = Path(__file__).parent
 
 class SkinPredictor:
-    def __init__(self, model_dir: Path):
+    CLINICAL_DISPLAY_NAMES = {
+        "ACK": "Actinic Keratosis",
+        "Acne and Rosacea": "Acne and Rosacea",
+        "Atopic Dermatitis": "Atopic Dermatitis",
+        "BCC": "Basal Cell Carcinoma",
+        "Bacterial Infections": "Bacterial Infections",
+        "Bullous Disease": "Bullous Disease",
+        "Contact Dermatitis": "Contact Dermatitis",
+        "Eczema": "Eczema",
+        "Exanthems and Drug Eruptions": "Exanthems and Drug Eruptions",
+        "Fungal Infections": "Fungal Infections",
+        "Hair and Nail Diseases": "Hair and Nail Diseases",
+        "Herpes and Viral STDs": "Herpes HPV and other STDs",
+        "Infestations and Bites": "Infestations and Bites",
+        "Lupus and Connective Tissue": "Lupus and Connective Tissue Diseases",
+        "MEL": "Melanoma",
+        "NEV": "Melanocytic Nevi",
+        "Pigmentation Disorders": "Pigmentation Disorders",
+        "Psoriasis and Lichen Planus": "Psoriasis and Lichen Planus",
+        "SCC": "Squamous Cell Carcinoma",
+        "SEK": "Seborrheic Keratosis",
+        "Systemic Disease": "Systemic Disease",
+        "Urticaria": "Urticaria",
+        "Vascular Lesions": "Vascular Lesions",
+        "Vasculitis": "Vasculitis",
+        "Viral Infections": "Viral Infections",
+    }
+
+    DERMOSCOPY_DISPLAY_NAMES = {
+        "AK": "Actinic Keratosis",
+        "BCC": "Basal Cell Carcinoma",
+        "BKL": "Benign Keratosis-like Lesions",
+        "DF": "Dermatofibroma",
+        "MEL": "Melanoma",
+        "NV": "Melanocytic Nevi",
+        "SCC": "Squamous Cell Carcinoma",
+        "VASC": "Vascular Lesions",
+    }
+
+    CLINICAL_ICD10 = {
+        "Actinic Keratosis": "L57.0",
+        "Acne and Rosacea": "L70.0",
+        "Atopic Dermatitis": "L20.9",
+        "Basal Cell Carcinoma": "C44.91",
+        "Bacterial Infections": "L08.9",
+        "Bullous Disease": "L13.9",
+        "Contact Dermatitis": "L25.9",
+        "Eczema": "L30.9",
+        "Exanthems and Drug Eruptions": "L27.0",
+        "Fungal Infections": "B36.9",
+        "Hair and Nail Diseases": "L60.9",
+        "Herpes HPV and other STDs": "B00.9",
+        "Infestations and Bites": "B88.9",
+        "Lupus and Connective Tissue Diseases": "M32.9",
+        "Melanoma": "C43.9",
+        "Melanocytic Nevi": "D22.9",
+        "Pigmentation Disorders": "L81.9",
+        "Psoriasis and Lichen Planus": "L40.9",
+        "Squamous Cell Carcinoma": "C44.92",
+        "Seborrheic Keratosis": "L82.1",
+        "Systemic Disease": "L99",
+        "Urticaria": "L50.9",
+        "Vascular Lesions": "L98.9",
+        "Vasculitis": "L95.9",
+        "Viral Infections": "B09",
+    }
+
+    DERMOSCOPY_ICD10 = {
+        "Actinic Keratosis": "L57.0",
+        "Basal Cell Carcinoma": "C44.91",
+        "Benign Keratosis-like Lesions": "L82.1",
+        "Dermatofibroma": "L98.0",
+        "Melanoma": "C43.9",
+        "Melanocytic Nevi": "D22.9",
+        "Squamous Cell Carcinoma": "C44.92",
+        "Vascular Lesions": "L98.9",
+    }
+
+    def __init__(
+        self,
+        model_dir: Path,
+        display_names: dict[str, str] | None = None,
+        icd10_map: dict[str, str] | None = None,
+    ):
+        self.display_names = display_names or {}
+        self.icd10_map = icd10_map or {}
         with open(model_dir / "model_config.json") as f:
             self.config = json.load(f)
         with open(model_dir / "classes.json") as f:
@@ -14,7 +99,7 @@ class SkinPredictor:
             self.idx_to_class = {int(k): v for k, v in raw.items()}
 
         num_classes = self.config["num_classes"]
-        dropout_p   = self.config.get("dropout_p", 0.3)
+        dropout_p   = self.config.get("dropout_p", 0.5)
 
         pth_files = list(model_dir.glob("*.pth"))
         if not pth_files:
@@ -47,14 +132,18 @@ class SkinPredictor:
         with torch.no_grad():
             probs = torch.softmax(self.model(tensor), dim=1)[0]
         top_probs, top_indices = torch.topk(probs, top_k)
-        return [
-            {
-                "condition" : self.idx_to_class[idx.item()],
+        results = []
+        for prob, idx in zip(top_probs, top_indices):
+            raw_name = self.idx_to_class[idx.item()]
+            display_name = self.display_names.get(raw_name, raw_name)
+            print(f"[DEBUG] raw: {raw_name!r} → display: {display_name!r}")
+            icd10 = self.icd10_map.get(display_name, "N/A") if self.icd10_map else "N/A"
+            results.append({
+                "condition" : display_name,
                 "confidence": round(prob.item(), 4),
-                "icd10"     : "N/A"
-            }
-            for prob, idx in zip(top_probs, top_indices)
-        ]
+                "icd10"     : icd10
+            })
+        return results
 
 _clinical   = None
 _dermoscopy = None
@@ -62,13 +151,21 @@ _dermoscopy = None
 def get_clinical_predictor() -> SkinPredictor:
     global _clinical
     if _clinical is None:
-        _clinical = SkinPredictor(MODELS_DIR / "clinical")
+        _clinical = SkinPredictor(
+            MODELS_DIR / "clinical",
+            SkinPredictor.CLINICAL_DISPLAY_NAMES,
+            SkinPredictor.CLINICAL_ICD10,
+        )
     return _clinical
 
 def get_dermoscopy_predictor() -> SkinPredictor:
     global _dermoscopy
     if _dermoscopy is None:
-        _dermoscopy = SkinPredictor(MODELS_DIR / "dermoscopy")
+        _dermoscopy = SkinPredictor(
+            MODELS_DIR / "dermoscopy",
+            SkinPredictor.DERMOSCOPY_DISPLAY_NAMES,
+            SkinPredictor.DERMOSCOPY_ICD10,
+        )
     return _dermoscopy
 
 def predict(image_bytes: bytes, image_type: str, top_k: int = 3):
