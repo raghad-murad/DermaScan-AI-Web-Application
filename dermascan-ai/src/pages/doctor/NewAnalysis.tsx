@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Upload, Zap, UserPlus, Save } from 'lucide-react';
+import { Upload, Zap, UserPlus, Save, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -36,9 +36,33 @@ export default function NewAnalysis() {
   const [caseNotes, setCaseNotes] = useState('');
   const [savingNotes, setSavingNotes] = useState(false);
 
+  const [modelsReady, setModelsReady] = useState(false);
+
   const [showNewPatient, setShowNewPatient] = useState(false);
   const [patientForm, setPatientForm] = useState(emptyPatientForm);
   const [creatingPatient, setCreatingPatient] = useState(false);
+
+  useEffect(() => {
+    let interval: ReturnType<typeof setInterval>;
+
+    const checkHealth = async () => {
+      try {
+        const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'}/health`);
+        const data = await res.json();
+        const bothReady = data?.models?.clinical === 'ready' && data?.models?.dermoscopy === 'ready';
+        if (bothReady) {
+          setModelsReady(true);
+          clearInterval(interval);
+        }
+      } catch {
+        // backend not yet available, keep polling
+      }
+    };
+
+    checkHealth();
+    interval = setInterval(checkHealth, 5000);
+    return () => clearInterval(interval);
+  }, []);
 
   const fetchPatients = () => {
     setLoadingPatients(true);
@@ -144,6 +168,13 @@ export default function NewAnalysis() {
     <div>
       <DoctorTopbar title="New Analysis" />
       <div className="p-6 max-w-4xl mx-auto space-y-6">
+        {!modelsReady && (
+          <div className="flex items-center gap-3 p-4 rounded-xl border border-yellow-500/30 bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 text-sm">
+            <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+            <span>AI models are initializing, please wait a moment before submitting an analysis.</span>
+          </div>
+        )}
+
         <Card className="border border-border rounded-xl">
           <CardHeader>
             <CardTitle className="text-lg">New Analysis</CardTitle>
@@ -224,7 +255,7 @@ export default function NewAnalysis() {
             <Button
               className="w-full rounded-lg h-12 gap-2 text-base"
               onClick={handleAnalyze}
-              disabled={!imageFile || !selectedPatientId || analyzing}
+              disabled={!imageFile || !selectedPatientId || analyzing || !modelsReady}
             >
               {analyzing ? (
                 <>
