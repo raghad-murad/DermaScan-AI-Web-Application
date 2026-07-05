@@ -1,0 +1,11 @@
+venv/
+__pycache__/
+*.pyc
+*.pyo
+.env
+app/models/cache/
+app/models/clinical/*.pth
+app/models/dermoscopy/*.pth
+scripts/
+test_email.py
+debug_routes.py
