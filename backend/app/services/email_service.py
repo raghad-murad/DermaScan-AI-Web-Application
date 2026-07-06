@@ -8,13 +8,13 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 
-def send_email(to_email: str, subject: str, body: str) -> None:
+def send_email(to_email: str, subject: str, body: str) -> bool:
     try:
         msg = MIMEMultipart()
-        msg["From"] = settings.EMAIL_FROM
-        msg["To"] = to_email
-        msg["Subject"] = subject
-        msg.attach(MIMEText(body, "plain"))
+        msg['From'] = settings.EMAIL_FROM
+        msg['To'] = to_email
+        msg['Subject'] = subject
+        msg.attach(MIMEText(body, 'plain'))
 
         with smtplib.SMTP(settings.SMTP_HOST, int(settings.SMTP_PORT)) as server:
             server.ehlo()
@@ -23,9 +23,10 @@ def send_email(to_email: str, subject: str, body: str) -> None:
             server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
             server.sendmail(settings.SMTP_USER, to_email, msg.as_string())
             logger.info(f"Email sent successfully to {to_email}")
+            return True
     except Exception as e:
-        logger.error(f"Failed to send email to {to_email}: {str(e)}")
-        raise
+        logger.warning(f"Email could not be sent to {to_email}: {str(e)}")
+        return False
 
 
 def send_approval_email(to_email: str, full_name: str) -> None:
