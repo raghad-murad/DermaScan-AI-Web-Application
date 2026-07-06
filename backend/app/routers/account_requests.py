@@ -56,15 +56,9 @@ async def update_account_request(
     new_status = payload.get("status")
     if new_status == "approved":
         print(f"Sending email to {updated['email']}")
-        try:
-            send_approval_email(updated["email"], updated["full_name"])
-        except Exception:
-            pass
+        pass  # TODO: send approval email
     elif new_status == "rejected":
         print(f"Sending email to {updated['email']}")
-        try:
-            send_rejection_email(updated["email"], updated["full_name"], payload.get("admin_message") or "Not specified")
-        except Exception:
-            pass
+        pass  # TODO: send approval email
 
     return updated
