@@ -59,12 +59,12 @@ async def update_account_request(
         try:
             send_approval_email(updated["email"], updated["full_name"])
         except Exception:
-            logger.exception("Failed to send approval email to %s", updated.get("email"))
+            pass
     elif new_status == "rejected":
         print(f"Sending email to {updated['email']}")
         try:
             send_rejection_email(updated["email"], updated["full_name"], payload.get("admin_message") or "Not specified")
         except Exception:
-            logger.exception("Failed to send rejection email to %s", updated.get("email"))
+            pass
 
     return updated
