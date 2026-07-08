@@ -129,7 +129,7 @@ export default function NewAnalysis() {
   const handleCreatePatient = async () => {
     setCreatingPatient(true);
     try {
-      const newPatient = await apiPost<any>('/api/patients', {
+      const newPatient = await apiPost<any>('/api/patients/', {
         full_name: patientForm.full_name,
         date_of_birth: patientForm.date_of_birth,
         gender: patientForm.gender,
