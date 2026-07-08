@@ -47,7 +47,7 @@ export default function NewAnalysis() {
 
     const checkHealth = async () => {
       try {
-        const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'}/health`);
+        const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'https://raghad-murad-dermoraai-backend.hf.space'}/health`);
         const data = await res.json();
         const bothReady = data?.models?.clinical === 'ready' && data?.models?.dermoscopy === 'ready';
         if (bothReady) {
